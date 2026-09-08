@@ -28,3 +28,14 @@ export interface LoginUserResponse {
 }
 export type TokenRefreshResponse = { accessToken: string };
 export type VerifyCodeResponse = { ticket: string };
+
+// ==========================================
+// Google OAuth
+// ==========================================
+
+export type GoogleAuthDto = { idToken: string };
+export interface GoogleAuthResponse {
+    user: IUser;
+    accessToken: string;
+    refreshToken: string;
+}

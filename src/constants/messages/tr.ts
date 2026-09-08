@@ -53,6 +53,7 @@ export const MESSAGES = {
         INVALID_SESSION: "Geçersiz oturum. Lütfen işlemi yeniden başlatın.",
         TOO_MANY_AUTH_ATTEMPTS: "Çok fazla giriş denemesi yaptınız. Lütfen 15 dakika sonra tekrar deneyin.",
         TOO_MANY_RESET_REQUESTS: "Çok fazla şifre sıfırlama isteği gönderdiniz. Lütfen 15 dakika sonra tekrar deneyin.",
+        INVALID_GOOGLE_TOKEN: "Geçersiz veya süresi dolmuş Google kimlik doğrulama bilgisi.",
 
         INTERNAL_SERVER_ERROR: "Sunucuda beklenmeyen bir hata oluştu.",
         NOT_FOUND: "Aradığınız içerik bulunamadı.",
@@ -91,6 +92,7 @@ export const MESSAGES = {
         PRIVACY_UPDATED: "Profil gizlilik ayarlarınız güncellendi.",
         ACCOUNT_DELETED: "Hesabınız başarıyla silindi.",
         ACCOUNT_REACTIVATED: "Hesabınız başarıyla yeniden etkinleştirildi.",
+        GOOGLE_LOGIN_SUCCESS: "Google ile giriş başarılı.",
         USER_FOLLOWED: "Kullanıcı takip edildi.",
         FOLLOW_REQUEST_SENT: "Takip isteği gönderildi.",
         USER_UNFOLLOWED: "Kullanıcı takipten çıkarıldı.",

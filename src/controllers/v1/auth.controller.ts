@@ -10,6 +10,7 @@ import {
     verifyCode,
     updatePassword,
     reactivateUser,
+    googleAuth,
 } from "@/services/auth.service";
 
 import {
@@ -20,6 +21,7 @@ import {
     SendResetEmailDto,
     VerifyCodeDto,
     UpdatePasswordDto,
+    GoogleAuthDto,
 } from "@/types/auth.types";
 import { TypedRequestBody } from "@/types/express.types";
 import { MESSAGES } from "@/constants/messages";
@@ -120,4 +122,16 @@ const reactivate = async (req: TypedRequestBody<LoginUserDto>, res: Response, ne
     }
 };
 
-export { register, login, refresh, logout, forgotPassword, verifyResetCode, resetPassword, reactivate };
+/**
+ * Handles Google OAuth sign-in
+ */
+const googleLogin = async (req: TypedRequestBody<GoogleAuthDto>, res: Response, next: NextFunction) => {
+    try {
+        const responseData = await googleAuth(req.body);
+        return sendResponse(res, 200, responseData, MESSAGES.SUCCESS.GOOGLE_LOGIN_SUCCESS);
+    } catch (error) {
+        next(error);
+    }
+};
+
+export { register, login, refresh, logout, forgotPassword, verifyResetCode, resetPassword, reactivate, googleLogin };

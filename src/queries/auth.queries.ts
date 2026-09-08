@@ -42,4 +42,27 @@ export const authQueries = {
         setById: `UPDATE "User" SET "resetToken" = $1, "resetTokenExpires" = $2 WHERE id = $3`,
         setNullById: `UPDATE "User" SET "resetToken" = NULL, "resetTokenExpires" = NULL WHERE id = $1`,
     },
+
+    /**
+     * Database queries for OAuth account management
+     */
+    oauth: {
+        findByProvider: `
+            SELECT "userId"
+            FROM "OAuthAccount"
+            WHERE "provider" = $1 AND "providerAccountId" = $2`,
+        createAccount: `
+            INSERT INTO "OAuthAccount" ("id", "userId", "provider", "providerAccountId", "createdAt", "updatedAt")
+            VALUES (gen_random_uuid(), $1, $2, $3, NOW(), NOW())`,
+        createUserWithOAuth: `
+            INSERT INTO "User" (id, email, username, fullname, avatar, "createdAt", "updatedAt")
+            VALUES (gen_random_uuid(), $1, $2, $3, $4, NOW(), NOW())
+            RETURNING id, email, username, fullname, avatar`,
+        findUserByEmail: `
+            SELECT id FROM "User" WHERE email = $1`,
+        findUserById: `
+            SELECT id, email, username, fullname, avatar FROM "User" WHERE id = $1`,
+        isUsernameTaken: `
+            SELECT 1 FROM "User" WHERE username = $1 LIMIT 1`,
+    },
 } as const;

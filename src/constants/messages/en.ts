@@ -53,6 +53,7 @@ export const MESSAGES = {
         INVALID_SESSION: "Invalid session. Please restart the process.",
         TOO_MANY_AUTH_ATTEMPTS: "Too many authentication attempts. Please try again after 15 minutes.",
         TOO_MANY_RESET_REQUESTS: "Too many password reset requests. Please try again after 15 minutes.",
+        INVALID_GOOGLE_TOKEN: "Invalid or expired Google authentication token.",
 
         INTERNAL_SERVER_ERROR: "An unexpected error occurred on the server.",
         NOT_FOUND: "The requested content was not found.",
@@ -91,6 +92,7 @@ export const MESSAGES = {
         PRIVACY_UPDATED: "Profile privacy settings updated.",
         ACCOUNT_DELETED: "Account deleted successfully.",
         ACCOUNT_REACTIVATED: "Account reactivated successfully.",
+        GOOGLE_LOGIN_SUCCESS: "Successfully signed in with Google.",
         USER_FOLLOWED: "User followed.",
         FOLLOW_REQUEST_SENT: "Follow request sent.",
         USER_UNFOLLOWED: "User unfollowed.",

@@ -10,6 +10,7 @@ import {
     verifyResetCode,
     resetPassword,
     reactivate,
+    googleLogin,
 } from "@/controllers/v1/auth.controller";
 
 // Middlewares & Validations
@@ -21,6 +22,7 @@ import {
     forgotPasswordSchema,
     verifyResetCodeSchema,
     resetPasswordSchema,
+    googleAuthSchema,
 } from "@/validations/auth.validation";
 import { authLimiter, forgotPasswordLimiter } from "@/middlewares/rateLimit.middleware";
 
@@ -81,5 +83,12 @@ router.post("/verify-reset-code", authLimiter, validate(verifyResetCodeSchema), 
  * @access  Public
  */
 router.post("/reset-password", validate(resetPasswordSchema), resetPassword);
+
+/**
+ * @route   POST /api/auth/google
+ * @desc    Authenticate or register user via Google OAuth
+ * @access  Public
+ */
+router.post("/google", authLimiter, validate(googleAuthSchema), googleLogin);
 
 export default router;

@@ -49,6 +49,13 @@ const resetPasswordSchema = z.object({
     }),
 });
 
+/** Schema for validating Google OAuth login payloads. */
+const googleAuthSchema = z.object({
+    body: z.object({
+        idToken: z.string({ message: MESSAGES.ERRORS.FIELD_REQUIRED("ID Token") }),
+    }),
+});
+
 export {
     registerSchema,
     loginSchema,
@@ -56,4 +63,6 @@ export {
     forgotPasswordSchema,
     verifyResetCodeSchema,
     resetPasswordSchema,
+    googleAuthSchema,
 };
+
