@@ -26,6 +26,22 @@ export const uploadAvatarToR2 = async (file: Express.Multer.File, userId: UserId
     return `${process.env.R2_PUBLIC_URL}/${key}`;
 };
 
+export const uploadCoverToR2 = async (file: Express.Multer.File, userId: UserId): Promise<string> => {
+    const extension = file.originalname.split(".").pop() || "jpg";
+    const key = `covers/user_${userId}_${Date.now()}.${extension}`;
+
+    await r2Client.send(
+        new PutObjectCommand({
+            Bucket: process.env.R2_BUCKET_NAME,
+            Key: key,
+            Body: file.buffer,
+            ContentType: file.mimetype,
+        }),
+    );
+
+    return `${process.env.R2_PUBLIC_URL}/${key}`;
+};
+
 export const deleteFileFromR2 = async (fileUrl: string) => {
     try {
         const url = new URL(fileUrl);

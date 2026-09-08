@@ -15,3 +15,10 @@ export const avatarUploadMiddleware = multer({
     limits: { fileSize: 5 * 1024 * 1024 },
     fileFilter: imageFilter,
 }).single("avatar");
+
+export const coverUploadMiddleware = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 10 * 1024 * 1024 },
+    fileFilter: imageFilter,
+}).single("cover");
+
