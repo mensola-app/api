@@ -30,6 +30,15 @@ export type CreatePlaylistDto = {
     isPrivate?: boolean;
     creatorId: UserId;
 };
+export type UpdatePlaylistDto = {
+    playlistId: PlaylistId;
+    userId: UserId;
+    title?: string;
+    description?: string | null;
+    image?: string | null;
+    isPrivate?: boolean;
+};
+
 
 // ==========================================
 // API Responses

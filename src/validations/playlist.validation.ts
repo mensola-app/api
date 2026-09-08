@@ -69,3 +69,19 @@ export const createPlaylistSchema = z.object({
         { message: MESSAGES.ERRORS.MISSING_REQUIRED_FIELDS },
     ),
 });
+
+export const updatePlaylistSchema = z.object({
+    params: playlistIdParamSchema.shape.params,
+    body: z
+        .object(
+            {
+                title: listTitleRule.optional(),
+                description: listDescRule,
+                image: listImageRule,
+                isPrivate: listIsPrivateRule,
+            },
+            { message: MESSAGES.ERRORS.MISSING_REQUIRED_FIELDS },
+        )
+        .refine((data) => Object.keys(data).length > 0, MESSAGES.ERRORS.AT_LEAST_ONE_FIELD_REQUIRED),
+});
+

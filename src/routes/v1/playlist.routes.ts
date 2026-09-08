@@ -12,6 +12,8 @@ import {
     addTrackToPlaylist,
     removeTrackFromPlaylist,
     createPlaylistHandler,
+    updatePlaylistHandler,
+    deletePlaylistHandler,
 } from "@/controllers/v1/playlist.controller";
 
 import { extractUser, verifyToken } from "@/middlewares/auth.middleware";
@@ -23,12 +25,15 @@ import {
     createPlaylistInteractionSchema,
     addTrackToPlaylistSchema,
     createPlaylistSchema,
+    updatePlaylistSchema,
 } from "@/validations/playlist.validation";
 import { requiredUserId } from "@/middlewares/requiredId.middleware";
 
 const router = Router();
 
 router.post("/", verifyToken, validate(createPlaylistSchema), createPlaylistHandler);
+router.patch("/:playlistId", verifyToken, validate(updatePlaylistSchema), updatePlaylistHandler);
+router.delete("/:playlistId", verifyToken, validate(playlistIdParamSchema), deletePlaylistHandler);
 router.post("/:playlistId/items/:trackId", verifyToken, validate(addTrackToPlaylistSchema), addTrackToPlaylist);
 router.delete("/:playlistId/items/:trackId", verifyToken, validate(addTrackToPlaylistSchema), removeTrackFromPlaylist);
 

@@ -28,6 +28,32 @@ export const playlistQueries = {
             VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, 'custom', NOW(), NOW())
             RETURNING id, title, description, image, "isPrivate", "creatorId", "listType", "createdAt", "updatedAt";
         `,
+        update: `
+            UPDATE "Playlist" p
+            SET 
+                title = COALESCE($1, p.title),
+                description = COALESCE($2, p.description),
+                image = CASE WHEN $7::boolean = true THEN $3 ELSE p.image END,
+                "isPrivate" = COALESCE($4, p."isPrivate"),
+                "updatedAt" = NOW()
+            WHERE p.id = $5 
+              AND p."listType" = 'custom'
+              AND (
+                  p."creatorId" = $6 
+                  OR EXISTS (
+                      SELECT 1 FROM "PlaylistOwner" po 
+                      WHERE po."playlistId" = p.id AND po."userId" = $6
+                  )
+              )
+            RETURNING p.*;
+        `,
+        delete: `
+            DELETE FROM "Playlist" p
+            WHERE p.id = $1 
+              AND p."listType" = 'custom'
+              AND p."creatorId" = $2
+            RETURNING *;
+        `,
     },
     likes: {
         /**

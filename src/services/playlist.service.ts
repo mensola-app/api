@@ -21,7 +21,9 @@ import {
     AddTrackToPlaylistDto,
     RemoveTrackFromPlaylistDto,
     CreatePlaylistDto,
+    UpdatePlaylistDto,
 } from "@/types/playlist.types";
+import { PlaylistId, UserId } from "@/types/common.types";
 import { ApiError } from "@/utils/error";
 import { upsertInteractionComment } from "@/utils/interaction";
 
@@ -289,3 +291,49 @@ export const createPlaylist = async (dto: CreatePlaylistDto) => {
 
     return result.rows[0];
 };
+
+/**
+ * Updates an existing custom playlist.
+ *
+ * @param dto - Data transfer object containing playlist ID, user ID, and update fields.
+ * @returns A promise that resolves to the updated playlist.
+ */
+export const updatePlaylist = async (dto: UpdatePlaylistDto) => {
+    const { playlistId, userId, title, description, image, isPrivate } = dto;
+
+    const result = await pool.query(playlistQueries.lists.update, [
+        title ?? null,
+        description ?? null,
+        image !== undefined ? image : null,
+        isPrivate ?? null,
+        playlistId,
+        userId,
+        image !== undefined,
+    ]);
+
+    const updatedPlaylist = result.rows[0];
+
+    if (!updatedPlaylist) {
+        throw new ApiError("NOT_FOUND_OR_NO_PERMISSION", 404);
+    }
+
+    return updatedPlaylist;
+};
+
+/**
+ * Deletes a custom playlist if the authenticated user is the creator.
+ *
+ * @param dto - Data transfer object containing playlist ID and user ID.
+ */
+export const deletePlaylist = async (dto: { playlistId: PlaylistId; userId: UserId }): Promise<void> => {
+    const { playlistId, userId } = dto;
+
+    const result = await pool.query(playlistQueries.lists.delete, [playlistId, userId]);
+    const deletedPlaylist = result.rows[0];
+
+    if (!deletedPlaylist) {
+        throw new ApiError("NOT_FOUND_OR_NO_PERMISSION", 404);
+    }
+};
+
+

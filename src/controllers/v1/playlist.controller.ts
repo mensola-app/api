@@ -12,10 +12,12 @@ import {
     likePlaylist as likePlaylistService,
     unlikePlaylist as unlikePlaylistService,
     createPlaylist,
+    updatePlaylist,
+    deletePlaylist,
 } from "@/services/playlist.service";
 import { sendResponse } from "@/utils/response";
 import { TypedRequest, TypedRequestBody, TypedRequestQuery } from "@/types/express.types";
-import { GetUserPlaylistsDto, GetLikedPlaylistsDto, UpsertPlaylistInteractionDto, CreatePlaylistDto } from "@/types/playlist.types";
+import { GetUserPlaylistsDto, GetLikedPlaylistsDto, UpsertPlaylistInteractionDto, CreatePlaylistDto, UpdatePlaylistDto } from "@/types/playlist.types";
 import { PaginationQueries, PlaylistId, TrackId, UserId } from "@/types/common.types";
 import { MESSAGES } from "@/constants/messages";
 
@@ -313,3 +315,59 @@ export const createPlaylistHandler = async (
         next(error);
     }
 };
+
+/**
+ * Updates an existing custom playlist.
+ *
+ * @route   PATCH /v1/playlists/:playlistId
+ * @access  Private (Requires Access Token)
+ */
+export const updatePlaylistHandler = async (
+    req: TypedRequest<{ playlistId: PlaylistId }, Omit<UpdatePlaylistDto, "playlistId" | "userId">>,
+    res: Response,
+    next: NextFunction,
+) => {
+    try {
+        const userId = req.user!.id;
+        const playlistId = req.params.playlistId;
+        const { title, description, image, isPrivate } = req.body;
+
+        const updatedPlaylist = await updatePlaylist({
+            playlistId,
+            userId,
+            title,
+            description,
+            image,
+            isPrivate,
+        });
+
+        return sendResponse(res, 200, updatedPlaylist, MESSAGES.SUCCESS.UPDATED_SUCCESSFULLY);
+    } catch (error) {
+        next(error);
+    }
+};
+
+/**
+ * Deletes a custom playlist.
+ *
+ * @route   DELETE /v1/playlists/:playlistId
+ * @access  Private (Requires Access Token)
+ */
+export const deletePlaylistHandler = async (
+    req: TypedRequest<{ playlistId: PlaylistId }>,
+    res: Response,
+    next: NextFunction,
+) => {
+    try {
+        const userId = req.user!.id as UserId;
+        const playlistId = req.params.playlistId;
+
+        await deletePlaylist({ playlistId, userId });
+
+        return sendResponse(res, 200, null, MESSAGES.SUCCESS.DELETED_SUCCESSFULLY);
+    } catch (error) {
+        next(error);
+    }
+};
+
+
