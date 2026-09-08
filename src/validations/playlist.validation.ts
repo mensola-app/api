@@ -20,16 +20,21 @@ export const listTitleRule = z
     .max(100, MESSAGES.ERRORS.MAX_LENGTH(MESSAGES.FIELDS.TITLE, 100));
 
 export const listDescRule = z
-    .string({ message: MESSAGES.ERRORS.FIELD_REQUIRED(MESSAGES.FIELDS.DESCRIPTION) })
+    .string()
     .trim()
     .max(500, MESSAGES.ERRORS.MAX_LENGTH(MESSAGES.FIELDS.DESCRIPTION, 500))
-    .optional();
+    .nullable()
+    .optional()
+    .transform((v) => (v === "" ? null : v));
 
 export const listImageRule = z
-    .string({ message: MESSAGES.ERRORS.FIELD_REQUIRED(MESSAGES.FIELDS.IMAGE) })
-    .url(MESSAGES.ERRORS.INVALID_URL)
+    .union([
+        z.string().url(MESSAGES.ERRORS.INVALID_URL),
+        z.literal(""),
+    ])
+    .nullable()
     .optional()
-    .nullable();
+    .transform((val) => (val === "" ? null : val));
 
 export const listIsPrivateRule = z
     .boolean({ message: MESSAGES.ERRORS.FIELD_REQUIRED(MESSAGES.FIELDS.IS_PRIVATE) })

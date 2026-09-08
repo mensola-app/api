@@ -22,36 +22,23 @@ export const movieQueries = {
                     WHERE mli."movieListId" = ml.id AND ($5::uuid IS NOT NULL AND mli."movieId" = $5::uuid)
                 ) AS "containsMovie",
                 COALESCE(
-                    json_agg(
-                        json_build_object(
-                            'id', m.id,
-                            'title', m.title,
-                            'poster', m.poster,
-                            'rating', m_int.rating,
-                            'isLiked', COALESCE(m_int."isLiked", false),
-                            'hasReview', EXISTS (
-                                SELECT 1 FROM "Comment" c WHERE c."interactionId" = m_int.id
-                            )
-                        )
-                    ) FILTER (WHERE m.id IS NOT NULL), 
-                    '[]'
-                ) AS "previewMovies"
+                    (
+                        SELECT json_agg(movie_posters.poster)
+                        FROM (
+                            SELECT m.poster
+                            FROM "MovieListItem" mli_prev
+                            JOIN "Movie" m ON mli_prev."movieId" = m.id
+                            WHERE mli_prev."movieListId" = ml.id AND m.poster IS NOT NULL
+                            ORDER BY mli_prev."addedAt" DESC
+                            LIMIT 4
+                        ) movie_posters
+                    ),
+                    '[]'::json
+                ) AS "previewImages"
             FROM "MovieList" ml
-            LEFT JOIN LATERAL (
-                SELECT 
-                    mli."movieId",
-                    mli."addedAt"
-                FROM "MovieListItem" mli
-                WHERE mli."movieListId" = ml.id
-                ORDER BY mli."addedAt" DESC
-                LIMIT 3
-            ) preview_movies ON true
-            LEFT JOIN "Movie" m ON m.id = preview_movies."movieId"
-            LEFT JOIN "Interaction" m_int ON m_int."targetId" = m.id AND m_int."userId" = ml."creatorId"
             WHERE ml."creatorId" = $1 
                 AND ml."listType" = 'custom' 
                 AND (ml."isPrivate" = false OR $1 = $2)
-            GROUP BY ml.id
             ORDER BY ml."updatedAt" DESC
             LIMIT $3 OFFSET $4;`,
 
@@ -175,9 +162,10 @@ export const movieQueries = {
             UPDATE "MovieList" ml
             SET 
                 title = COALESCE($1, ml.title),
-                description = COALESCE($2, ml.description),
-                image = COALESCE($3, ml.image),
-                "isPrivate" = COALESCE($4, ml."isPrivate")
+                description = CASE WHEN $8::boolean = true THEN $2 ELSE ml.description END,
+                image = CASE WHEN $7::boolean = true THEN $3 ELSE ml.image END,
+                "isPrivate" = COALESCE($4, ml."isPrivate"),
+                "updatedAt" = NOW()
             WHERE ml.id = $5 
               AND ml."listType" = 'custom'
               AND (
@@ -332,38 +320,26 @@ export const movieQueries = {
                         WHERE u.id = ml."creatorId"
                     ) AS "creator",
                     COALESCE(
-                        json_agg(
-                            json_build_object(
-                                'id', m.id,
-                                'title', m.title,
-                                'poster', m.poster,
-                                'rating', m_int.rating,
-                                'isLiked', COALESCE(m_int."isLiked", false),
-                                'hasReview', EXISTS (
-                                    SELECT 1 FROM "Comment" c WHERE c."interactionId" = m_int.id
-                                )
-                            )
-                        ) FILTER (WHERE m.id IS NOT NULL),
-                        '[]'
-                    ) AS "previewMovies"
+                        (
+                            SELECT json_agg(movie_posters.poster)
+                            FROM (
+                                SELECT m.poster
+                                FROM "MovieListItem" mli_prev
+                                JOIN "Movie" m ON mli_prev."movieId" = m.id
+                                WHERE mli_prev."movieListId" = ml.id AND m.poster IS NOT NULL
+                                ORDER BY mli_prev."addedAt" DESC
+                                LIMIT 4
+                            ) movie_posters
+                        ),
+                        '[]'::json
+                    ) AS "previewImages"
                 FROM "Interaction" ml_int
                 JOIN "MovieList" ml ON ml.id = ml_int."targetId"
-                LEFT JOIN LATERAL (
-                    SELECT 
-                        mli."movieId",
-                        mli."addedAt"
-                    FROM "MovieListItem" mli
-                    WHERE mli."movieListId" = ml.id
-                    ORDER BY mli."addedAt" DESC
-                    LIMIT 3
-                ) preview_movies ON true
-                LEFT JOIN "Movie" m ON m.id = preview_movies."movieId"
-                LEFT JOIN "Interaction" m_int ON m_int."userId" = ml_int."userId" AND m_int."targetId" = m.id AND m_int."targetType" = 'movie'
                 WHERE ml_int."targetType" = 'movieList' 
                     AND ml_int."userId" = $1 
                     AND ml_int."isLiked" = true
                     AND (ml."isPrivate" = false OR ml."creatorId" = $2)
-                GROUP BY ml.id
+                ORDER BY ml_int."updatedAt" DESC
                 LIMIT $3 OFFSET $4;`,
 
             /**

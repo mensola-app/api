@@ -333,11 +333,13 @@ export const updateList = async (dto: UpdateMovieListDto): Promise<IMovieList> =
 
     const result = await pool.query<IMovieList>(movieQueries.lists.update, [
         title ?? null,
-        description ?? null,
-        image ?? null,
+        description !== undefined ? description : null,
+        image !== undefined ? image : null,
         isPrivate ?? null,
         listId,
         userId,
+        image !== undefined,
+        description !== undefined,
     ]);
     const updatedList = result.rows[0];
 

@@ -15,7 +15,21 @@ export const playlistQueries = {
                 EXISTS (
                     SELECT 1 FROM "PlaylistItem" pi
                     WHERE pi."playlistId" = p.id AND ($5::uuid IS NOT NULL AND pi."trackId" = $5::uuid)
-                ) AS "containsTrack"
+                ) AS "containsTrack",
+                COALESCE(
+                    (
+                        SELECT json_agg(track_images.image)
+                        FROM (
+                            SELECT t.image
+                            FROM "PlaylistItem" pi_prev
+                            JOIN "Track" t ON pi_prev."trackId" = t.id
+                            WHERE pi_prev."playlistId" = p.id AND t.image IS NOT NULL
+                            ORDER BY pi_prev."addedAt" DESC
+                            LIMIT 4
+                        ) track_images
+                    ),
+                    '[]'::json
+                ) AS "previewImages"
             FROM "Playlist" p
             WHERE p."creatorId" = $1
               AND p."listType" = 'custom'
@@ -32,7 +46,7 @@ export const playlistQueries = {
             UPDATE "Playlist" p
             SET 
                 title = COALESCE($1, p.title),
-                description = COALESCE($2, p.description),
+                description = CASE WHEN $8::boolean = true THEN $2 ELSE p.description END,
                 image = CASE WHEN $7::boolean = true THEN $3 ELSE p.image END,
                 "isPrivate" = COALESCE($4, p."isPrivate"),
                 "updatedAt" = NOW()
@@ -72,7 +86,21 @@ export const playlistQueries = {
                     SELECT json_build_object('id', u.id, 'username', u.username, 'avatar', u.avatar)
                     FROM "User" u
                     WHERE u.id = p."creatorId"
-                ) AS "creator"
+                ) AS "creator",
+                COALESCE(
+                    (
+                        SELECT json_agg(track_images.image)
+                        FROM (
+                            SELECT t.image
+                            FROM "PlaylistItem" pi_prev
+                            JOIN "Track" t ON pi_prev."trackId" = t.id
+                            WHERE pi_prev."playlistId" = p.id AND t.image IS NOT NULL
+                            ORDER BY pi_prev."addedAt" DESC
+                            LIMIT 4
+                        ) track_images
+                    ),
+                    '[]'::json
+                ) AS "previewImages"
             FROM "Interaction" i
             JOIN "Playlist" p ON i."targetId" = p.id
             WHERE i."userId" = $1 

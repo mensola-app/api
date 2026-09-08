@@ -44,9 +44,9 @@ export type UpdatePlaylistDto = {
 // API Responses
 // ==========================================
 
-export type GetUserPlaylistsResponseItem = IPlaylist & { songCount?: number; containsTrack?: boolean };
+export type GetUserPlaylistsResponseItem = IPlaylist & { songCount?: number; containsTrack?: boolean; previewImages?: string[] };
 export type GetUserPlaylistsResponse = GetUserPlaylistsResponseItem[];
-export type GetLikedPlaylistsResponseItem = IPlaylist & { songCount?: number; creator?: UserSummary };
+export type GetLikedPlaylistsResponseItem = IPlaylist & { songCount?: number; creator?: UserSummary; previewImages?: string[] };
 export type GetLikedPlaylistsResponse = GetLikedPlaylistsResponseItem[];
 export type PlaylistItemResponseItem = Omit<ITrack, "albumId" | "createdAt"> & {
     addedAt?: Date | string;

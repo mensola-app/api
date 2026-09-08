@@ -118,7 +118,8 @@ export type MovieListResponseItem = {
     movieCount?: number;
     creator?: Pick<IUser, "id" | "username" | "avatar">;
     containsMovie?: boolean;
-    previewMovies: PreviewMoviesItem[];
+    previewImages?: string[];
+    previewMovies?: PreviewMoviesItem[];
 };
 export type GetUserListsResponseItem = MovieListResponseItem;
 export type GetLikedListsResponseItem = MovieListResponseItem;

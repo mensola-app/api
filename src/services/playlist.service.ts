@@ -303,12 +303,13 @@ export const updatePlaylist = async (dto: UpdatePlaylistDto) => {
 
     const result = await pool.query(playlistQueries.lists.update, [
         title ?? null,
-        description ?? null,
+        description !== undefined ? description : null,
         image !== undefined ? image : null,
         isPrivate ?? null,
         playlistId,
         userId,
         image !== undefined,
+        description !== undefined,
     ]);
 
     const updatedPlaylist = result.rows[0];
