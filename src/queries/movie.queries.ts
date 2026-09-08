@@ -11,6 +11,12 @@ export const movieQueries = {
             SELECT
                 ml.id AS "listId",
                 ml.title AS "listTitle",
+                ml.image AS "image",
+                (
+                    SELECT COUNT(*)::int
+                    FROM "MovieListItem" mli_cnt
+                    WHERE mli_cnt."movieListId" = ml.id
+                ) AS "movieCount",
                 EXISTS (
                     SELECT 1 FROM "MovieListItem" mli
                     WHERE mli."movieListId" = ml.id AND ($5::uuid IS NOT NULL AND mli."movieId" = $5::uuid)
@@ -314,6 +320,17 @@ export const movieQueries = {
                 SELECT
                     ml.id AS "listId",
                     ml.title AS "listTitle",
+                    ml.image AS "image",
+                    (
+                        SELECT COUNT(*)::int
+                        FROM "MovieListItem" mli_cnt
+                        WHERE mli_cnt."movieListId" = ml.id
+                    ) AS "movieCount",
+                    (
+                        SELECT json_build_object('id', u.id, 'username', u.username, 'avatar', u.avatar)
+                        FROM "User" u
+                        WHERE u.id = ml."creatorId"
+                    ) AS "creator",
                     COALESCE(
                         json_agg(
                             json_build_object(

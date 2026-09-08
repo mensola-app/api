@@ -114,6 +114,9 @@ export type PreviewMoviesItem = MovieSummary & { rating?: number; isLiked?: bool
 export type MovieListResponseItem = {
     listId: MovieListId;
     listTitle: IMovieList["title"];
+    image?: string | null;
+    movieCount?: number;
+    creator?: Pick<IUser, "id" | "username" | "avatar">;
     containsMovie?: boolean;
     previewMovies: PreviewMoviesItem[];
 };
