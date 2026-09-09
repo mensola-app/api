@@ -54,6 +54,8 @@ export const MESSAGES = {
         TOO_MANY_AUTH_ATTEMPTS: "Too many authentication attempts. Please try again after 15 minutes.",
         TOO_MANY_RESET_REQUESTS: "Too many password reset requests. Please try again after 15 minutes.",
         INVALID_GOOGLE_TOKEN: "Invalid or expired Google authentication token.",
+        OAUTH_ACCOUNT_NO_PASSWORD: (provider: string) =>
+            `This account was created with ${provider}. Please sign in with ${provider} or reset your password to set one.`,
 
         INTERNAL_SERVER_ERROR: "An unexpected error occurred on the server.",
         NOT_FOUND: "The requested content was not found.",

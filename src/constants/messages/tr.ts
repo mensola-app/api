@@ -54,6 +54,8 @@ export const MESSAGES = {
         TOO_MANY_AUTH_ATTEMPTS: "Çok fazla giriş denemesi yaptınız. Lütfen 15 dakika sonra tekrar deneyin.",
         TOO_MANY_RESET_REQUESTS: "Çok fazla şifre sıfırlama isteği gönderdiniz. Lütfen 15 dakika sonra tekrar deneyin.",
         INVALID_GOOGLE_TOKEN: "Geçersiz veya süresi dolmuş Google kimlik doğrulama bilgisi.",
+        OAUTH_ACCOUNT_NO_PASSWORD: (provider: string) =>
+            `Bu hesap ${provider} ile oluşturulmuş. Lütfen ${provider} ile giriş yapın veya bir şifre belirlemek için 'Şifremi Unuttum' adımını kullanın.`,
 
         INTERNAL_SERVER_ERROR: "Sunucuda beklenmeyen bir hata oluştu.",
         NOT_FOUND: "Aradığınız içerik bulunamadı.",

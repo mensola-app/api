@@ -64,5 +64,7 @@ export const authQueries = {
             SELECT id, email, username, fullname, avatar FROM "User" WHERE id = $1`,
         isUsernameTaken: `
             SELECT 1 FROM "User" WHERE username = $1 LIMIT 1`,
+        findProvidersByUserId: `
+            SELECT provider FROM "OAuthAccount" WHERE "userId" = $1`,
     },
 } as const;

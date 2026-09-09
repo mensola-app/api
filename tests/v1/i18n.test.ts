@@ -52,6 +52,16 @@ describe("i18n Infrastructure Tests", () => {
                 "You can change your username once every 14 days. Days remaining: 5",
             );
         });
+
+        it("should translate OAuth account no password error message to English", () => {
+            const trMsg = MESSAGES.ERRORS.OAUTH_ACCOUNT_NO_PASSWORD("Google");
+            expect(trMsg).toBe(
+                "Bu hesap Google ile oluşturulmuş. Lütfen Google ile giriş yapın veya bir şifre belirlemek için 'Şifremi Unuttum' adımını kullanın.",
+            );
+            expect(translateMessage(trMsg, "en")).toBe(
+                "This account was created with Google. Please sign in with Google or reset your password to set one.",
+            );
+        });
     });
 
     describe("i18nMiddleware", () => {

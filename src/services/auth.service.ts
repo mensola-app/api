@@ -8,6 +8,7 @@ import { generateAccessToken, generateRefreshToken, verifyRefreshToken } from "@
 import { verifyGoogleToken } from "@/utils/google";
 
 import { authQueries } from "@/queries/auth.queries";
+import { MESSAGES } from "@/constants/messages";
 
 import {
     CreateUserDto,
@@ -60,6 +61,18 @@ export const loginUser = async (dto: LoginUserDto): Promise<LoginUserResponse> =
 
     // Separate password from user object before returning
     const { password, ...user } = dbUser;
+
+    if (!password) {
+        const oauthResult = await pool.query<{ provider: string }>(authQueries.oauth.findProvidersByUserId, [user.id]);
+        const provider = oauthResult.rows[0]?.provider || "google";
+        const formattedProvider = provider.charAt(0).toUpperCase() + provider.slice(1);
+
+        throw new ApiError(
+            "OAUTH_ACCOUNT_NO_PASSWORD",
+            400,
+            MESSAGES.ERRORS.OAUTH_ACCOUNT_NO_PASSWORD(formattedProvider),
+        );
+    }
 
     const isValid = await comparePassword(dto.password, password);
     if (!isValid) {
@@ -189,6 +202,18 @@ export const reactivateUser = async (dto: LoginUserDto): Promise<LoginUserRespon
     }
 
     // 2. Verify password
+    if (!dbUser.password) {
+        const oauthResult = await pool.query<{ provider: string }>(authQueries.oauth.findProvidersByUserId, [dbUser.id]);
+        const provider = oauthResult.rows[0]?.provider || "google";
+        const formattedProvider = provider.charAt(0).toUpperCase() + provider.slice(1);
+
+        throw new ApiError(
+            "OAUTH_ACCOUNT_NO_PASSWORD",
+            400,
+            MESSAGES.ERRORS.OAUTH_ACCOUNT_NO_PASSWORD(formattedProvider),
+        );
+    }
+
     const isValid = await comparePassword(dto.password, dbUser.password);
     if (!isValid) {
         throw new ApiError("INVALID_CREDENTIALS", 401);

@@ -41,6 +41,13 @@ export const translateMessage = (message: string, lang?: string): string => {
     }
 
     // Dynamic patterns
+    const oauthNoPasswordMatch = message.match(
+        /^Bu hesap (.+) ile oluşturulmuş\. Lütfen (.+) ile giriş yapın veya bir şifre belirlemek için 'Şifremi Unuttum' adımını kullanın\.$/,
+    );
+    if (oauthNoPasswordMatch) {
+        return en.ERRORS.OAUTH_ACCOUNT_NO_PASSWORD(oauthNoPasswordMatch[1]);
+    }
+
     const usernameLimitMatch = message.match(/Kullanıcı adınızı 14 günde bir değiştirebilirsiniz\. Kalan gün: (\d+)/);
     if (usernameLimitMatch) {
         return en.ERRORS.USERNAME_CHANGE_LIMIT(Number(usernameLimitMatch[1]));
