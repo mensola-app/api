@@ -31,6 +31,9 @@ import {
     upsertMovieInteraction,
     UpsertMovieInteractionDto,
     findOrFetchFromTmdb,
+    updateWatchedAt,
+    deleteWatchedById,
+    getWatchedByMovieId,
 } from "@/services/movie.service";
 
 // Utilities
@@ -280,12 +283,17 @@ const createMovieList = async (
  * @route   POST /api/movies/:movieId/watched
  * @access  Private (Requires Access Token)
  */
-const markMovieAsWatched = async (req: TypedRequest<{ movieId: MovieId }>, res: Response, next: NextFunction) => {
+const markMovieAsWatched = async (
+    req: TypedRequest<{ movieId: MovieId }, { watchedAt?: string | null }>,
+    res: Response,
+    next: NextFunction,
+) => {
     try {
         const userId = req.user!.id;
         const movieId = req.params.movieId;
+        const watchedAt = req.body?.watchedAt ?? null;
 
-        const watchedMovie = await markAsWatched({ userId, movieId });
+        const watchedMovie = await markAsWatched({ userId, movieId, watchedAt });
         return sendResponse(res, 201, watchedMovie);
     } catch (error) {
         next(error);
@@ -315,6 +323,74 @@ const unmarkMovieAsWatched = async (req: TypedRequest<{ movieId: MovieId }>, res
         next(error);
     }
 };
+
+/**
+ * Updates the watchedAt timestamp of a specific watched movie record.
+ *
+ * @route   PATCH /api/movies/watched/:watchedMovieId
+ * @access  Private (Requires Access Token)
+ */
+const updateWatchedAtEntry = async (
+    req: TypedRequest<{ watchedMovieId: string }, { watchedAt: string }>,
+    res: Response,
+    next: NextFunction,
+) => {
+    try {
+        const userId = req.user!.id;
+        const watchedMovieId = req.params.watchedMovieId as any;
+        const { watchedAt } = req.body;
+
+        const updated = await updateWatchedAt({ watchedMovieId, userId, watchedAt });
+        return sendResponse(res, 200, updated, MESSAGES.SUCCESS.UPDATED_SUCCESSFULLY);
+    } catch (error) {
+        next(error);
+    }
+};
+
+/**
+ * Deletes a specific watched movie record by its ID.
+ *
+ * @route   DELETE /api/movies/watched/:watchedMovieId
+ * @access  Private (Requires Access Token)
+ */
+const deleteWatchedEntry = async (
+    req: TypedRequest<{ watchedMovieId: string }>,
+    res: Response,
+    next: NextFunction,
+) => {
+    try {
+        const userId = req.user!.id;
+        const watchedMovieId = req.params.watchedMovieId as any;
+
+        await deleteWatchedById({ watchedMovieId, userId });
+        return sendResponse(res, 200, null, MESSAGES.SUCCESS.DELETED_SUCCESSFULLY);
+    } catch (error) {
+        next(error);
+    }
+};
+
+/**
+ * Retrieves all watched history records for the authenticated user for a specific movie.
+ *
+ * @route   GET /api/movies/:movieId/watched-history
+ * @access  Private (Requires Access Token)
+ */
+const getWatchedHistoryByMovieId = async (
+    req: TypedRequest<{ movieId: MovieId }>,
+    res: Response,
+    next: NextFunction,
+) => {
+    try {
+        const userId = req.user!.id;
+        const movieId = req.params.movieId;
+
+        const records = await getWatchedByMovieId({ userId, movieId });
+        return sendResponse(res, 200, records);
+    } catch (error) {
+        next(error);
+    }
+};
+
 
 /**
  * Retrieves a movie's details and its latest interactions by ID.
@@ -787,6 +863,9 @@ export {
     createMovieList,
     markMovieAsWatched,
     unmarkMovieAsWatched,
+    updateWatchedAtEntry,
+    deleteWatchedEntry,
+    getWatchedHistoryByMovieId,
     getMovieById,
     addMovieToWatchlist,
     removeMovieFromWatchlist,

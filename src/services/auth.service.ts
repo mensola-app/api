@@ -203,7 +203,9 @@ export const reactivateUser = async (dto: LoginUserDto): Promise<LoginUserRespon
 
     // 2. Verify password
     if (!dbUser.password) {
-        const oauthResult = await pool.query<{ provider: string }>(authQueries.oauth.findProvidersByUserId, [dbUser.id]);
+        const oauthResult = await pool.query<{ provider: string }>(authQueries.oauth.findProvidersByUserId, [
+            dbUser.id,
+        ]);
         const provider = oauthResult.rows[0]?.provider || "google";
         const formattedProvider = provider.charAt(0).toUpperCase() + provider.slice(1);
 
@@ -325,4 +327,3 @@ export const googleAuth = async (dto: GoogleAuthDto): Promise<GoogleAuthResponse
 
     return { user, accessToken, refreshToken };
 };
-

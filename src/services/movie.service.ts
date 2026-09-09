@@ -20,6 +20,9 @@ import {
     GetWatchlistDto,
     UserMovieActionDto,
     GetMovieDto,
+    UpdateWatchedAtDto,
+    DeleteWatchedByIdDto,
+    GetWatchedByMovieIdDto,
 
     // Response Contracts & Items
     GetFavoritesResponse,
@@ -191,12 +194,73 @@ export const createList = async (dto: CreateMovieListDto): Promise<IMovieList> =
 /**
  * Marks a movie as watched by adding a record to the WatchedMovie table.
  *
- * @param dto - Data transfer object containing userId and movieId.
+ * @param dto - Data transfer object containing userId, movieId, and optional watchedAt.
  * @returns The newly created WatchedMovie record.
  */
-export const markAsWatched = async (dto: UserMovieActionDto): Promise<IWatchedMovie> => {
-    const result = await pool.query<IWatchedMovie>(movieQueries.movies.watched.add, [dto.userId, dto.movieId]);
+export const markAsWatched = async (dto: UserMovieActionDto & { watchedAt?: Date | string | null }): Promise<IWatchedMovie> => {
+    const result = await pool.query<IWatchedMovie>(movieQueries.movies.watched.add, [
+        dto.userId,
+        dto.movieId,
+        dto.watchedAt ?? null,
+    ]);
     return result.rows[0];
+};
+
+/**
+ * Updates the watchedAt timestamp of a specific WatchedMovie record by its ID.
+ *
+ * @param dto - Data transfer object containing watchedMovieId, userId, and new watchedAt date.
+ * @returns The updated WatchedMovie record.
+ * @throws {ApiError} 404 Not Found if the record does not exist or the user is not the owner.
+ */
+export const updateWatchedAt = async (dto: UpdateWatchedAtDto): Promise<IWatchedMovie> => {
+    const result = await pool.query<IWatchedMovie>(movieQueries.movies.watched.updateWatchedAt, [
+        dto.watchedMovieId,
+        dto.userId,
+        dto.watchedAt,
+    ]);
+
+    const updated = result.rows[0];
+    if (!updated) {
+        throw new ApiError("NOT_FOUND_OR_NO_PERMISSION", 404);
+    }
+
+    return updated;
+};
+
+/**
+ * Deletes a specific WatchedMovie record by its ID.
+ *
+ * @param dto - Data transfer object containing watchedMovieId and userId.
+ * @returns The deleted WatchedMovie record.
+ * @throws {ApiError} 404 Not Found if the record does not exist or the user is not the owner.
+ */
+export const deleteWatchedById = async (dto: DeleteWatchedByIdDto): Promise<IWatchedMovie> => {
+    const result = await pool.query<IWatchedMovie>(movieQueries.movies.watched.deleteById, [
+        dto.watchedMovieId,
+        dto.userId,
+    ]);
+
+    const deleted = result.rows[0];
+    if (!deleted) {
+        throw new ApiError("NOT_FOUND_OR_NO_PERMISSION", 404);
+    }
+
+    return deleted;
+};
+
+/**
+ * Retrieves all WatchedMovie records for a specific user and movie.
+ *
+ * @param dto - Data transfer object containing userId and movieId.
+ * @returns Array of WatchedMovie records ordered by watchedAt descending.
+ */
+export const getWatchedByMovieId = async (dto: GetWatchedByMovieIdDto): Promise<IWatchedMovie[]> => {
+    const result = await pool.query<IWatchedMovie>(movieQueries.movies.watched.getByMovieId, [
+        dto.userId,
+        dto.movieId,
+    ]);
+    return result.rows;
 };
 
 /**

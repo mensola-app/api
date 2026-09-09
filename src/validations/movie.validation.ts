@@ -130,3 +130,53 @@ export const createMovieInteractionSchema = z.object({
     params: z.object({ movieId: movieIdRule }),
     body: createOrUpdateInteractionBody,
 });
+
+/* ==========================================================================
+   Watched Movie History Validations
+   ========================================================================== */
+
+/**
+ * Validation schema for marking a movie as watched.
+ * Accepts an optional watchedAt ISO date string in the body.
+ */
+export const markMovieAsWatchedSchema = z.object({
+    params: z.object({ movieId: movieIdRule }),
+    body: z.object({
+        watchedAt: z.string().datetime({ offset: true }).optional().nullable(),
+    }).optional(),
+});
+
+/**
+ * Validation schema for endpoints that require a valid `watchedMovieId` param.
+ */
+export const watchedMovieIdParamSchema = z.object({
+    params: z.object({
+        watchedMovieId: z
+            .string({ message: "watchedMovieId zorunludur." })
+            .uuid("watchedMovieId geçerli bir UUID olmalıdır.")
+            .trim(),
+    }),
+});
+
+/**
+ * Validation schema for PATCH /watched/:watchedMovieId.
+ * Requires a valid watchedAt ISO timestamp in the body.
+ */
+export const updateWatchedAtSchema = z.object({
+    params: z.object({
+        watchedMovieId: z
+            .string({ message: "watchedMovieId zorunludur." })
+            .uuid("watchedMovieId geçerli bir UUID olmalıdır.")
+            .trim(),
+    }),
+    body: z.object({
+        watchedAt: z.string({ message: "watchedAt zorunludur." }).datetime({ offset: true }),
+    }),
+});
+
+/**
+ * Validation schema for GET /movies/:movieId/watched-history.
+ */
+export const watchedHistoryByMovieIdSchema = z.object({
+    params: z.object({ movieId: movieIdRule }),
+});

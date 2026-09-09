@@ -11,6 +11,9 @@ import {
     createMovieList,
     markMovieAsWatched,
     unmarkMovieAsWatched,
+    updateWatchedAtEntry,
+    deleteWatchedEntry,
+    getWatchedHistoryByMovieId,
     getMovieById,
     addMovieToWatchlist,
     removeMovieFromWatchlist,
@@ -49,6 +52,10 @@ import {
     createMovieInteractionSchema,
     tmdbIdParamSchema,
     addFavoriteMovieSchema,
+    markMovieAsWatchedSchema,
+    updateWatchedAtSchema,
+    watchedMovieIdParamSchema,
+    watchedHistoryByMovieIdSchema,
 } from "@/validations/movie.validation";
 import { requiredUserId } from "@/middlewares/requiredId.middleware";
 
@@ -96,8 +103,15 @@ router.delete("/lists/:listId", verifyToken, validate(listIdParamSchema), delete
 router.get("/by-tmdb/:tmdbId", extractUser, validate(tmdbIdParamSchema), getOrFetchTmdbMovie);
 
 // Watched Status
-router.post("/:movieId/watched", verifyToken, validate(movieIdParamSchema), markMovieAsWatched);
+router.post("/:movieId/watched", verifyToken, validate(markMovieAsWatchedSchema), markMovieAsWatched);
 router.delete("/:movieId/watched", verifyToken, validate(movieIdParamSchema), unmarkMovieAsWatched);
+
+// Watched History by Record ID
+router.patch("/watched/:watchedMovieId", verifyToken, validate(updateWatchedAtSchema), updateWatchedAtEntry);
+router.delete("/watched/:watchedMovieId", verifyToken, validate(watchedMovieIdParamSchema), deleteWatchedEntry);
+
+// Watched History by Movie ID
+router.get("/:movieId/watched-history", verifyToken, validate(watchedHistoryByMovieIdSchema), getWatchedHistoryByMovieId);
 
 // Watchlist Status
 router.post("/:movieId/watchlist", verifyToken, validate(movieIdParamSchema), addMovieToWatchlist);

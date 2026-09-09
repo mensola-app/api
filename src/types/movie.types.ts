@@ -59,6 +59,7 @@ export interface IWatchedMovie {
     userId: UserId;
     movieId: MovieId;
     watchedAt: Date | string;
+    createdAt?: Date | string;
 }
 
 // ==========================================
@@ -86,6 +87,10 @@ export type MovieListItemDto = { listId: MovieListId; movieId: MovieId; userId: 
 export type LikeMovieDto = UserMovieActionDto;
 export type UnlikeMovieDto = UserMovieActionDto;
 export type FindOrFetchFromTmdbDto = { tmdbId: TmdbId; userId?: UserId };
+export type UpdateWatchedAtDto = { watchedMovieId: WatchedMovieId; userId: UserId; watchedAt: Date | string };
+export type DeleteWatchedByIdDto = { watchedMovieId: WatchedMovieId; userId: UserId };
+export type GetWatchedByMovieIdDto = { movieId: MovieId; userId: UserId };
+
 
 // ==========================================
 // API Responses & Nested Projections

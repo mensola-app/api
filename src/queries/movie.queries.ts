@@ -567,8 +567,37 @@ export const movieQueries = {
              */
             add: `
                 INSERT INTO "WatchedMovie" (id, "userId", "movieId", "watchedAt")
-                VALUES (gen_random_uuid(), $1, $2, NOW())
+                VALUES (gen_random_uuid(), $1, $2, COALESCE($3::TIMESTAMPTZ, NOW()))
                 RETURNING *`,
+
+            /**
+             * Updates the watchedAt timestamp of a specific WatchedMovie record by its ID.
+             * Only the owner can update their own record.
+             */
+            updateWatchedAt: `
+                UPDATE "WatchedMovie"
+                SET "watchedAt" = $3::TIMESTAMPTZ
+                WHERE id = $1 AND "userId" = $2
+                RETURNING *;`,
+
+            /**
+             * Deletes a specific WatchedMovie record by its ID.
+             * Only the owner can delete their own record.
+             */
+            deleteById: `
+                DELETE FROM "WatchedMovie"
+                WHERE id = $1 AND "userId" = $2
+                RETURNING *;`,
+
+            /**
+             * Retrieves all WatchedMovie records for a specific user and movie,
+             * ordered by watchedAt descending.
+             */
+            getByMovieId: `
+                SELECT id, "userId", "movieId", "watchedAt", "createdAt"
+                FROM "WatchedMovie"
+                WHERE "userId" = $1 AND "movieId" = $2
+                ORDER BY "watchedAt" DESC;`,
 
             /**
              * Completely removes a movie from the user's watched history by deleting
