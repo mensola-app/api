@@ -549,7 +549,8 @@ export const movieQueries = {
                     m.poster,
                     m_int.rating,
                     COALESCE(m_int."isLiked", false) AS "isLiked",
-                    wm."watchedAt" AS "watchedAt",
+                    MAX(wm."watchedAt") AS "watchedAt",
+                    COUNT(wm.id)::int AS "watchCount",
                     EXISTS (
                         SELECT 1 FROM "Comment" c WHERE c."interactionId" = m_int.id
                     ) AS "hasReview"
@@ -559,6 +560,8 @@ export const movieQueries = {
                     AND m_int."targetId" = m.id
                     AND m_int."targetType" = 'movie'
                 WHERE wm."userId" = $1
+                GROUP BY m.id, m_int.rating, m_int."isLiked", m_int.id
+                ORDER BY "watchedAt" DESC
                 LIMIT $2 OFFSET $3;`,
 
             /**

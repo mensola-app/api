@@ -113,6 +113,7 @@ export type GetWatchedMoviesResponseItem = MovieSummary & {
     isLiked?: boolean;
     hasReview?: boolean;
     watchedAt?: Date | string;
+    watchCount?: number;
 };
 export type GetWatchedMoviesResponse = GetWatchedMoviesResponseItem[];
 export type PreviewMoviesItem = MovieSummary & { rating?: number; isLiked?: boolean };

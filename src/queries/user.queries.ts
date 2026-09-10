@@ -221,7 +221,7 @@ export const userQueries = {
             ) watchlists ON v.user_id = watchlists.creator_id
         
             LEFT JOIN (
-                SELECT "userId", COUNT(*) AS count
+                SELECT "userId", COUNT(DISTINCT "movieId") AS count
                 FROM "WatchedMovie"
                 WHERE "userId" = $1
                 GROUP BY "userId"
