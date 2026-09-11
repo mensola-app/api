@@ -110,13 +110,3 @@ export const searchUserQuerySchema = z.object({
         })
         .passthrough(),
 });
-
-/**
- * Save / Update Push Token Schema
- */
-export const savePushTokenSchema = z.object({
-    body: z.object({
-        pushToken: z.string({ message: MESSAGES.ERRORS.FIELD_REQUIRED("Push token") }).min(1),
-        platform: z.string({ message: MESSAGES.ERRORS.FIELD_REQUIRED("Platform") }).min(1),
-    }),
-});
