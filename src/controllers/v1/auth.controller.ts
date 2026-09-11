@@ -1,4 +1,6 @@
 import { Response, NextFunction } from "express";
+import jwt from "jsonwebtoken";
+import { UserId } from "@/types/common.types";
 import { sendResponse } from "@/utils/response";
 
 import {
@@ -63,11 +65,32 @@ const refresh = async (req: TypedRequestBody<TokenRefreshDto>, res: Response, ne
 };
 
 /**
- * Revokes user session and logs out
+ * Revokes user session and logs out. Optionally deletes pushToken device entry.
  */
 const logout = async (req: TypedRequestBody<LogoutDto>, res: Response, next: NextFunction) => {
     try {
-        await userLogout(req.body);
+        let userId = req.user?.id;
+
+        if (!userId && req.headers.authorization?.startsWith("Bearer ")) {
+            try {
+                const token = req.headers.authorization.split(" ")[1];
+                const secret = process.env.JWT_SECRET;
+                if (secret) {
+                    const decoded = jwt.verify(token, secret) as { id: UserId };
+                    if (decoded?.id) userId = decoded.id;
+                }
+            } catch {
+                try {
+                    const token = req.headers.authorization.split(" ")[1];
+                    const decoded = jwt.decode(token) as { id?: UserId } | null;
+                    if (decoded?.id) userId = decoded.id;
+                } catch {
+                    // ignore
+                }
+            }
+        }
+
+        await userLogout(req.body, userId);
         return sendResponse(res, 200, null, MESSAGES.SUCCESS.LOGOUT_SUCCESS);
     } catch (error) {
         next(error);

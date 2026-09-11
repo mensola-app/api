@@ -29,6 +29,8 @@ jest.mock("@/utils/email", () => ({
 describe("Auth Endpoints", () => {
     // State variables shared across test steps
     let testRefreshToken = "";
+    let testAccessToken = "";
+    let testUserId = "";
     let resetTicket = "";
     let otpCode = "";
 
@@ -62,6 +64,8 @@ describe("Auth Endpoints", () => {
             expect(body.success).toBe(true);
             expect(body.data).toHaveProperty("accessToken");
             expect(body.data?.user).toHaveProperty("email", testUser.email);
+            testUserId = body.data!.user!.id;
+            testAccessToken = body.data!.accessToken;
         });
 
         /**
@@ -164,6 +168,29 @@ describe("Auth Endpoints", () => {
             expect(response.status).toBe(200);
             expect(body.success).toBe(true);
             expect(body.message).toBe(MESSAGES.SUCCESS.LOGOUT_SUCCESS);
+        });
+
+        it("Should delete device push token if pushToken is provided during logout (200)", async () => {
+            await pool.query(
+                'INSERT INTO "UserDevices" ("userId", "pushToken", "platform") VALUES ($1, $2, $3)',
+                [testUserId, "ExponentPushToken[logout-test-token]", "android"]
+            );
+
+            const response = await request(app)
+                .post("/v1/auth/logout")
+                .set("Authorization", `Bearer ${testAccessToken}`)
+                .send({
+                    pushToken: "ExponentPushToken[logout-test-token]",
+                });
+
+            expect(response.status).toBe(200);
+            expect(response.body.success).toBe(true);
+
+            const check = await pool.query(
+                'SELECT 1 FROM "UserDevices" WHERE "userId" = $1 AND "pushToken" = $2',
+                [testUserId, "ExponentPushToken[logout-test-token]"]
+            );
+            expect(check.rowCount).toBe(0);
         });
     });
 

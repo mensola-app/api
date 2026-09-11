@@ -1119,4 +1119,50 @@ describe("User endpoints", () => {
             await pool.query('DELETE FROM "User" WHERE id IN ($1, $2)', [freshId, activeId]);
         });
     });
+
+    describe("POST /v1/users/push-token", () => {
+        it("should save a new push token for authenticated user (200)", async () => {
+            const response = await request(app)
+                .post("/v1/users/push-token")
+                .set("Authorization", `Bearer ${userAToken}`)
+                .send({
+                    pushToken: "ExponentPushToken[userA-device-token]",
+                    platform: "android",
+                });
+
+            expect(response.status).toBe(200);
+            expect(response.body.success).toBe(true);
+            expect(response.body.data.pushToken).toBe("ExponentPushToken[userA-device-token]");
+            expect(response.body.data.platform).toBe("android");
+            expect(response.body.data.userId).toBe(userAId);
+        });
+
+        it("should upsert push token when the token already exists (200)", async () => {
+            const response = await request(app)
+                .post("/v1/users/push-token")
+                .set("Authorization", `Bearer ${userBToken}`)
+                .send({
+                    pushToken: "ExponentPushToken[userA-device-token]",
+                    platform: "ios",
+                });
+
+            expect(response.status).toBe(200);
+            expect(response.body.success).toBe(true);
+            expect(response.body.data.pushToken).toBe("ExponentPushToken[userA-device-token]");
+            expect(response.body.data.platform).toBe("ios");
+            expect(response.body.data.userId).toBe(userBId);
+        });
+
+        it("should reject push token creation without authentication (401)", async () => {
+            const response = await request(app)
+                .post("/v1/users/push-token")
+                .send({
+                    pushToken: "ExponentPushToken[unauth-token]",
+                    platform: "android",
+                });
+
+            expect(response.status).toBe(401);
+            expect(response.body.success).toBe(false);
+        });
+    });
 });

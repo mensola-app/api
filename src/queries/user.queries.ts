@@ -491,4 +491,28 @@ export const userQueries = {
             LIMIT $3 OFFSET $4;
         `
     },
+
+    /**
+     * User Device & Push Notification Queries
+     */
+    devices: {
+        upsert: `
+            INSERT INTO "UserDevices" ("userId", "pushToken", "platform", "updatedAt")
+            VALUES ($1, $2, $3, NOW())
+            ON CONFLICT ("pushToken")
+            DO UPDATE SET
+                "userId" = EXCLUDED."userId",
+                "platform" = EXCLUDED."platform",
+                "updatedAt" = NOW()
+            RETURNING *;
+        `,
+        deleteByUserAndToken: `
+            DELETE FROM "UserDevices"
+            WHERE "userId" = $1 AND "pushToken" = $2;
+        `,
+        deleteByToken: `
+            DELETE FROM "UserDevices"
+            WHERE "pushToken" = $1;
+        `,
+    },
 };

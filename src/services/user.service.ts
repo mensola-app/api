@@ -22,6 +22,8 @@ import {
     SearchUsersDto,
     SearchUsersResponse,
     SearchUsersResponseItem,
+    SavePushTokenDto,
+    IUserDevice,
 } from "@/types/user.types";
 import { deleteFileFromR2 } from "./storage.service";
 import crypto from "crypto";
@@ -472,4 +474,25 @@ export const searchUsers = async (dto: SearchUsersDto): Promise<SearchUsersRespo
     ]);
 
     return result.rows;
+};
+
+/**
+ * Upserts a push notification token for a user device.
+ * If the pushToken already exists, updates userId, platform, and updatedAt.
+ */
+export const savePushToken = async (dto: SavePushTokenDto): Promise<IUserDevice> => {
+    const result = await pool.query<IUserDevice>(userQueries.devices.upsert, [
+        dto.userId,
+        dto.pushToken,
+        dto.platform,
+    ]);
+    return result.rows[0];
+};
+
+/**
+ * Removes a device push token by userId and pushToken.
+ */
+export const removeUserDevice = async (userId: string, pushToken: string): Promise<boolean> => {
+    await pool.query(userQueries.devices.deleteByUserAndToken, [userId, pushToken]);
+    return true;
 };

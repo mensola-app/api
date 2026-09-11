@@ -1,6 +1,6 @@
 import { Response, NextFunction, Request } from "express";
 
-import { getUserProfile, profileUpdate, getFollowers, getFollowing, follow, unfollow, updateUsername, checkUsernameAvailability, requestEmailChange, verifyEmailChange, changePassword, updateProfilePrivacy, softDeleteAccount, searchUsers } from "@/services/user.service";
+import { getUserProfile, profileUpdate, getFollowers, getFollowing, follow, unfollow, updateUsername, checkUsernameAvailability, requestEmailChange, verifyEmailChange, changePassword, updateProfilePrivacy, softDeleteAccount, searchUsers, savePushToken } from "@/services/user.service";
 
 import { sendResponse } from "@/utils/response";
 
@@ -346,4 +346,28 @@ const searchUsersController = async (
     }
 };
 
-export { getMe, getUserById, updateProfile, getUserFollowers, getUserFollowing, followUser, unfollowUser, changeUsername, verifyUsername, requestEmailChangeController, verifyEmailChangeController, changePasswordController, updatePrivacyController, deleteMeController, searchUsersController };
+/**
+ * Saves or updates user device push token.
+ */
+const savePushTokenController = async (
+    req: TypedRequestBody<{ pushToken: string; platform: string }>,
+    res: Response,
+    next: NextFunction,
+) => {
+    try {
+        const userId = req.user!.id;
+        const { pushToken, platform } = req.body;
+
+        const device = await savePushToken({
+            userId,
+            pushToken,
+            platform,
+        });
+
+        return sendResponse(res, 200, device, MESSAGES.SUCCESS.UPDATED_SUCCESSFULLY);
+    } catch (error) {
+        next(error);
+    }
+};
+
+export { getMe, getUserById, updateProfile, getUserFollowers, getUserFollowing, followUser, unfollowUser, changeUsername, verifyUsername, requestEmailChangeController, verifyEmailChangeController, changePasswordController, updatePrivacyController, deleteMeController, searchUsersController, savePushTokenController };

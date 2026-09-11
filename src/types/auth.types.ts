@@ -7,7 +7,7 @@ import { IUser } from "@/types/user.types";
 export type CreateUserDto = Pick<IUser, "username" | "email"> & { password: string };
 export type LoginUserDto = Pick<IUser, "email"> & { password: string };
 export type TokenRefreshDto = { refreshToken: string };
-export type LogoutDto = { refreshToken: string };
+export type LogoutDto = { refreshToken?: string; pushToken?: string };
 export type SendResetEmailDto = Pick<IUser, "email">;
 export type VerifyCodeDto = Pick<IUser, "email"> & { code: string };
 export type UpdatePasswordDto = { ticket: string; newPassword: string };

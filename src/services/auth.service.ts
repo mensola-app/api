@@ -8,6 +8,7 @@ import { generateAccessToken, generateRefreshToken, verifyRefreshToken } from "@
 import { verifyGoogleToken } from "@/utils/google";
 
 import { authQueries } from "@/queries/auth.queries";
+import { userQueries } from "@/queries/user.queries";
 import { MESSAGES } from "@/constants/messages";
 
 import {
@@ -118,9 +119,30 @@ export const tokenRefresh = async (dto: TokenRefreshDto): Promise<TokenRefreshRe
 
 /**
  * Revokes a session by deleting the refresh token from the database.
+ * If a pushToken is provided, removes that device entry for the user.
  */
-export const userLogout = async (dto: LogoutDto): Promise<boolean> => {
-    await pool.query(authQueries.session.deleteByToken, [dto.refreshToken]);
+export const userLogout = async (dto: LogoutDto, userId?: string): Promise<boolean> => {
+    let resolvedUserId = userId;
+
+    if (!resolvedUserId && dto.refreshToken) {
+        const sessionRes = await pool.query<{ userId: string }>(authQueries.session.getByToken, [dto.refreshToken]);
+        if (sessionRes.rows[0]) {
+            resolvedUserId = sessionRes.rows[0].userId;
+        }
+    }
+
+    if (dto.pushToken) {
+        if (resolvedUserId) {
+            await pool.query(userQueries.devices.deleteByUserAndToken, [resolvedUserId, dto.pushToken]);
+        } else {
+            await pool.query(userQueries.devices.deleteByToken, [dto.pushToken]);
+        }
+    }
+
+    if (dto.refreshToken) {
+        await pool.query(authQueries.session.deleteByToken, [dto.refreshToken]);
+    }
+
     return true;
 };
 

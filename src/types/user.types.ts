@@ -124,3 +124,17 @@ export interface ChangePasswordResponse {
     accessToken: string;
     refreshToken: string;
 }
+
+export interface IUserDevice {
+    id: string;
+    userId: UserId;
+    pushToken: string;
+    platform: string;
+    updatedAt?: Date | string;
+}
+
+export interface SavePushTokenDto {
+    userId: UserId;
+    pushToken: string;
+    platform: string;
+}

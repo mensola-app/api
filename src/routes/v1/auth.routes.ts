@@ -23,6 +23,7 @@ import {
     verifyResetCodeSchema,
     resetPasswordSchema,
     googleAuthSchema,
+    logoutSchema,
 } from "@/validations/auth.validation";
 import { authLimiter, forgotPasswordLimiter } from "@/middlewares/rateLimit.middleware";
 
@@ -61,7 +62,7 @@ router.post("/refresh", validate(refreshTokenSchema), refresh);
  * @desc    Log out the user and invalidate active session
  * @access  Public / Authenticated
  */
-router.post("/logout", logout);
+router.post("/logout", validate(logoutSchema), logout);
 
 /**
  * @route   POST /api/auth/forgot-password

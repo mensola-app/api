@@ -17,6 +17,7 @@ import {
     updatePrivacyController,
     deleteMeController,
     searchUsersController,
+    savePushTokenController,
 } from "@/controllers/v1/user.controller";
 import {
     handleAcceptFollowRequest,
@@ -28,7 +29,7 @@ import { verifyToken, extractUser } from "@/middlewares/auth.middleware";
 import { validate } from "@/middlewares/validate.middleware";
 
 // Validations
-import { userListQuerySchema, userIdParamSchema, updateProfileSchema, updateUsernameSchema, checkUsernameQuerySchema, requestEmailChangeSchema, verifyEmailChangeSchema, changePasswordSchema, updatePrivacySchema, searchUserQuerySchema } from "@/validations/user.validation";
+import { userListQuerySchema, userIdParamSchema, updateProfileSchema, updateUsernameSchema, checkUsernameQuerySchema, requestEmailChangeSchema, verifyEmailChangeSchema, changePasswordSchema, updatePrivacySchema, searchUserQuerySchema, savePushTokenSchema } from "@/validations/user.validation";
 import { requiredUserId } from "@/middlewares/requiredId.middleware";
 
 const router = Router();
@@ -68,6 +69,13 @@ router.patch("/me", verifyToken, validate(updateProfileSchema), updateProfile);
  * @access  Private (Requires valid Access Token)
  */
 router.delete("/me", verifyToken, deleteMeController);
+
+/**
+ * @route   POST /api/users/push-token
+ * @desc    Register or update device push token
+ * @access  Private (Requires valid Access Token)
+ */
+router.post("/push-token", verifyToken, validate(savePushTokenSchema), savePushTokenController);
 
 /**
  * @route   PATCH /api/users/username

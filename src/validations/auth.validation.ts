@@ -56,6 +56,14 @@ const googleAuthSchema = z.object({
     }),
 });
 
+/** Schema for validating logout payloads. */
+const logoutSchema = z.object({
+    body: z.object({
+        refreshToken: z.string().optional(),
+        pushToken: z.string().optional(),
+    }).passthrough(),
+});
+
 export {
     registerSchema,
     loginSchema,
@@ -64,5 +72,6 @@ export {
     verifyResetCodeSchema,
     resetPasswordSchema,
     googleAuthSchema,
+    logoutSchema,
 };
 
