@@ -2,6 +2,7 @@ import pool from "@/config/db";
 import { commentQueries } from "@/queries/comment.queries";
 import { ApiError } from "@/utils/error";
 import { InteractionId } from "@/types/common.types";
+import { createNotification } from "./notification.service";
 import {
     CommentThreadItem,
     CommentThreadPagination,
@@ -120,12 +121,47 @@ export const toggleCommentLike = async (
         const existing = await client.query(commentQueries.findCommentLike, [userId, commentId]);
         const isAlreadyLiked = (existing.rowCount ?? 0) > 0;
 
+        let notificationToSend: Parameters<typeof createNotification>[0] | null = null;
+
         if (isAlreadyLiked) {
             // Unlike: remove the row
             await client.query(commentQueries.removeCommentLike, [userId, commentId]);
+
+            // Clean up unread notification
+            await client.query(
+                `DELETE FROM "Notification"
+                 WHERE "actorId" = $1 AND "type" = 'like' AND "targetType" = 'comment' AND "targetId" = $2 AND "isRead" = false`,
+                [userId, commentId],
+            );
         } else {
             // Like: insert a new row
             await client.query(commentQueries.addCommentLike, [userId, commentId]);
+
+            // Fetch comment author
+            const commentRes = await client.query<{ userId: string; content: string }>(
+                `SELECT "userId", "content" FROM "Comment" WHERE id = $1`,
+                [commentId],
+            );
+            const comment = commentRes.rows[0];
+            if (comment && comment.userId !== userId) {
+                const userRes = await client.query<{ username: string; fullname: string }>(
+                    `SELECT username, fullname FROM "User" WHERE id = $1`,
+                    [userId],
+                );
+                const liker = userRes.rows[0];
+                const likerName = liker?.fullname || liker?.username || "Bir kullanıcı";
+
+                notificationToSend = {
+                    recipientId: comment.userId,
+                    actorId: userId,
+                    type: "like",
+                    targetType: "comment",
+                    targetId: commentId,
+                    pushTitle: "Yeni Beğeni",
+                    pushBody: `${likerName} yorumunu beğendi.`,
+                    path: `/comments/${commentId}`,
+                };
+            }
         }
 
         // Fetch the fresh like count after the toggle
@@ -136,6 +172,11 @@ export const toggleCommentLike = async (
         const likeCount = countResult.rows[0]?.likeCount ?? 0;
 
         await client.query("COMMIT");
+
+        // Dispatch notification asynchronously after successful commit
+        if (notificationToSend) {
+            await createNotification(notificationToSend);
+        }
 
         return {
             commentId,

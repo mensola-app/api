@@ -9,8 +9,8 @@ import { sendPushNotification } from "@/utils/pushNotification";
  * Creates a notification record and sends an Expo push notification.
  */
 export const createNotification = async (params: {
-    recipientId: UserId;
-    actorId: UserId;
+    recipientId: UserId | string;
+    actorId: UserId | string;
     type: NotificationType;
     targetType?: string | null;
     targetId?: string | null;
@@ -29,6 +29,8 @@ export const createNotification = async (params: {
         params.recipientId,
         params.actorId,
         params.type,
+        params.targetType ?? null,
+        params.targetId ?? null,
     ]);
 
     // Insert new notification
@@ -49,7 +51,13 @@ export const createNotification = async (params: {
                 ? "/notifications"
                 : params.type === "follow"
                   ? `/users/${params.actorId}`
-                  : undefined);
+                  : params.targetType === "playlist" && params.targetId
+                    ? `/playlists/${params.targetId}`
+                    : params.targetType === "movie_list" && params.targetId
+                      ? `/movie-lists/${params.targetId}`
+                      : params.targetType === "comment" && params.targetId
+                        ? `/comments/${params.targetId}`
+                        : undefined);
 
         await sendPushNotification(params.recipientId, {
             title: params.pushTitle,
@@ -87,6 +95,8 @@ export const getNotificationsData = async (userId: UserId): Promise<Notification
             ? {
                   id: row.targetId,
                   type: (row.targetType || "user") as any,
+                  title: row.targetTitle ?? undefined,
+                  image: row.targetImage ?? undefined,
               }
             : undefined,
         createdAt: row.createdAt ? new Date(row.createdAt).toISOString() : new Date().toISOString(),

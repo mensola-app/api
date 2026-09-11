@@ -191,4 +191,85 @@ describe("Notification Endpoints", () => {
             expect(unread.length).toBe(0);
         });
     });
+
+    describe("Like Notifications (Playlist & Movie List)", () => {
+        it("should create a notification with target info when someone likes a playlist", async () => {
+            // Private user creates a custom playlist
+            const createPlRes = await request(app)
+                .post("/v1/playlists")
+                .set("Authorization", `Bearer ${privateUserToken}`)
+                .send({ title: "My Special Playlist", isPrivate: false });
+
+            expect(createPlRes.status).toBe(201);
+            const playlistId = createPlRes.body.data.id;
+
+            // Requester likes the playlist
+            const likeRes = await request(app)
+                .post(`/v1/playlists/${playlistId}/like`)
+                .set("Authorization", `Bearer ${requesterUserToken}`);
+
+            expect(likeRes.status).toBe(200);
+
+            // Private user checks notifications
+            const notifRes = await request(app)
+                .get("/v1/notifications")
+                .set("Authorization", `Bearer ${privateUserToken}`);
+
+            const plNotif = notifRes.body.data.notifications.find(
+                (n: any) => n.type === "like" && n.target?.type === "playlist" && n.target?.id === playlistId,
+            );
+
+            expect(plNotif).toBeTruthy();
+            expect(plNotif.actor.id).toBe(requesterUserId);
+            expect(plNotif.target.title).toBe("My Special Playlist");
+
+            // Requester unlikes the playlist
+            const unlikeRes = await request(app)
+                .delete(`/v1/playlists/${playlistId}/like`)
+                .set("Authorization", `Bearer ${requesterUserToken}`);
+
+            expect(unlikeRes.status).toBe(200);
+
+            // Notification should be deleted since it was unread
+            const notifAfterUnlike = await request(app)
+                .get("/v1/notifications")
+                .set("Authorization", `Bearer ${privateUserToken}`);
+
+            const notifStillExists = notifAfterUnlike.body.data.notifications.some(
+                (n: any) => n.id === plNotif.id,
+            );
+            expect(notifStillExists).toBe(false);
+        });
+
+        it("should create a notification with target info when someone likes a movie list", async () => {
+            // Private user creates a movie list
+            const createListRes = await request(app)
+                .post("/v1/movies/lists")
+                .set("Authorization", `Bearer ${privateUserToken}`)
+                .send({ title: "My Fav Sci-Fi Movies", isPrivate: false });
+
+            expect(createListRes.status).toBe(201);
+            const listId = createListRes.body.data.id;
+
+            // Requester likes the movie list
+            const likeRes = await request(app)
+                .post(`/v1/movies/lists/${listId}/like`)
+                .set("Authorization", `Bearer ${requesterUserToken}`);
+
+            expect(likeRes.status).toBe(200);
+
+            // Private user checks notifications
+            const notifRes = await request(app)
+                .get("/v1/notifications")
+                .set("Authorization", `Bearer ${privateUserToken}`);
+
+            const mlNotif = notifRes.body.data.notifications.find(
+                (n: any) => n.type === "like" && n.target?.type === "movie_list" && n.target?.id === listId,
+            );
+
+            expect(mlNotif).toBeTruthy();
+            expect(mlNotif.actor.id).toBe(requesterUserId);
+            expect(mlNotif.target.title).toBe("My Fav Sci-Fi Movies");
+        });
+    });
 });

@@ -2,6 +2,7 @@ import pool from "@/config/db";
 import { movieQueries } from "@/queries/movie.queries";
 import { ApiError } from "@/utils/error";
 import { MovieId, TmdbId } from "@/types/common.types";
+import { createNotification } from "./notification.service";
 
 // Types & Interfaces
 import {
@@ -580,6 +581,34 @@ export const likeList = async (dto: LikeMovieListDto): Promise<LikeMovieListResp
         throw new ApiError("ACTION_FAILED_NO_PERMISSION", 404);
     }
 
+    // Send notification to list creator (if not liking own list)
+    const listRes = await pool.query<{ creatorId: string; title: string }>(
+        `SELECT "creatorId", "title" FROM "MovieList" WHERE id = $1`,
+        [listId],
+    );
+    if (listRes.rows.length > 0) {
+        const list = listRes.rows[0];
+        if (list.creatorId !== userId) {
+            const userRes = await pool.query<{ username: string; fullname: string }>(
+                `SELECT username, fullname FROM "User" WHERE id = $1`,
+                [userId],
+            );
+            const liker = userRes.rows[0];
+            const likerName = liker?.fullname || liker?.username || "Bir kullanıcı";
+
+            await createNotification({
+                recipientId: list.creatorId,
+                actorId: userId,
+                type: "like",
+                targetType: "movie_list",
+                targetId: listId,
+                pushTitle: "Yeni Beğeni",
+                pushBody: `${likerName} "${list.title}" film listeni beğendi.`,
+                path: `/movie-lists/${listId}`,
+            });
+        }
+    }
+
     return result.rows[0];
 };
 
@@ -597,6 +626,13 @@ export const unlikeList = async (dto: UnlikeMovieListDto): Promise<UnlikeMovieLi
     if (result.rowCount === 0) {
         throw new ApiError("ACTION_FAILED_NO_PERMISSION", 404);
     }
+
+    // Clean up unread notification
+    await pool.query(
+        `DELETE FROM "Notification"
+         WHERE "actorId" = $1 AND "type" = 'like' AND "targetType" = 'movie_list' AND "targetId" = $2 AND "isRead" = false`,
+        [userId, listId],
+    );
 
     return result.rows[0];
 };

@@ -26,6 +26,7 @@ import {
 import { PlaylistId, UserId } from "@/types/common.types";
 import { ApiError } from "@/utils/error";
 import { upsertInteractionComment } from "@/utils/interaction";
+import { createNotification } from "./notification.service";
 
 /**
  * Retrieves playlists for a specific user.
@@ -247,6 +248,35 @@ export const likePlaylist = async (dto: LikePlaylistDto): Promise<LikePlaylistRe
     }
 
     const result = await pool.query<LikePlaylistResponse>(playlistQueries.likes.add, [userId, playlistId]);
+
+    // Send notification to playlist creator (if not liking own playlist)
+    const playlistRes = await pool.query<{ creatorId: string; title: string }>(
+        `SELECT "creatorId", "title" FROM "Playlist" WHERE id = $1`,
+        [playlistId],
+    );
+    if (playlistRes.rows.length > 0) {
+        const playlist = playlistRes.rows[0];
+        if (playlist.creatorId !== userId) {
+            const userRes = await pool.query<{ username: string; fullname: string }>(
+                `SELECT username, fullname FROM "User" WHERE id = $1`,
+                [userId],
+            );
+            const liker = userRes.rows[0];
+            const likerName = liker?.fullname || liker?.username || "Bir kullanıcı";
+
+            await createNotification({
+                recipientId: playlist.creatorId,
+                actorId: userId,
+                type: "like",
+                targetType: "playlist",
+                targetId: playlistId,
+                pushTitle: "Yeni Beğeni",
+                pushBody: `${likerName} "${playlist.title}" çalma listeni beğendi.`,
+                path: `/playlists/${playlistId}`,
+            });
+        }
+    }
+
     return result.rows[0];
 };
 
@@ -269,6 +299,14 @@ export const unlikePlaylist = async (dto: UnlikePlaylistDto): Promise<UnlikePlay
     }
 
     const result = await pool.query<UnlikePlaylistResponse>(playlistQueries.likes.remove, [userId, playlistId]);
+
+    // Clean up unread notification
+    await pool.query(
+        `DELETE FROM "Notification"
+         WHERE "actorId" = $1 AND "type" = 'like' AND "targetType" = 'playlist' AND "targetId" = $2 AND "isRead" = false`,
+        [userId, playlistId],
+    );
+
     return result.rows[0] || { playlistId, isLiked: false };
 };
 

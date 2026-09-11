@@ -7,7 +7,11 @@ export const notificationQueries = {
 
     deleteExisting: `
         DELETE FROM "Notification"
-        WHERE "recipientId" = $1 AND "actorId" = $2 AND "type" = $3;
+        WHERE "recipientId" = $1 
+          AND "actorId" = $2 
+          AND "type" = $3
+          AND ("targetType" IS NOT DISTINCT FROM $4)
+          AND ("targetId" IS NOT DISTINCT FROM $5);
     `,
 
     getAllByRecipient: `
@@ -23,7 +27,18 @@ export const notificationQueries = {
             u.username,
             u.fullname AS "fullName",
             u.avatar,
-            f.status AS "followStatus"
+            f.status AS "followStatus",
+            CASE 
+                WHEN n."targetType" = 'playlist' THEN (SELECT p.title FROM "Playlist" p WHERE p.id::text = n."targetId")
+                WHEN n."targetType" = 'movie_list' THEN (SELECT ml.title FROM "MovieList" ml WHERE ml.id::text = n."targetId")
+                WHEN n."targetType" = 'comment' THEN (SELECT LEFT(c.content, 60) FROM "Comment" c WHERE c.id::text = n."targetId")
+                ELSE NULL
+            END AS "targetTitle",
+            CASE 
+                WHEN n."targetType" = 'playlist' THEN (SELECT p.image FROM "Playlist" p WHERE p.id::text = n."targetId")
+                WHEN n."targetType" = 'movie_list' THEN (SELECT ml.image FROM "MovieList" ml WHERE ml.id::text = n."targetId")
+                ELSE NULL
+            END AS "targetImage"
         FROM "Notification" n
         JOIN "User" u ON u.id = n."actorId"
         LEFT JOIN "Follow" f ON f."followerId" = n."actorId" AND f."followingId" = n."recipientId"
