@@ -6,6 +6,8 @@ import {
     getNotifications,
     handleAcceptFollowRequest,
     handleDeclineFollowRequest,
+    handleMarkNotificationRead,
+    handleMarkAllNotificationsRead,
 } from "@/controllers/v1/notification.controller";
 
 const router = Router();
@@ -18,6 +20,20 @@ router.use(verifyToken);
  * @access  Private (Requires valid Access Token)
  */
 router.get("/", getNotifications);
+
+/**
+ * @route   PATCH /api/v1/notifications/read-all
+ * @desc    Mark all user notifications as read
+ * @access  Private (Requires valid Access Token)
+ */
+router.patch("/read-all", handleMarkAllNotificationsRead);
+
+/**
+ * @route   PATCH /api/v1/notifications/:id/read
+ * @desc    Mark a specific notification as read
+ * @access  Private (Requires valid Access Token)
+ */
+router.patch("/:id/read", handleMarkNotificationRead);
 
 /**
  * @route   POST /api/v1/notifications/follow-requests/:userId/accept

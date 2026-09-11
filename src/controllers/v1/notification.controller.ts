@@ -3,6 +3,8 @@ import {
     getNotificationsData,
     acceptFollowRequest,
     declineFollowRequest,
+    markNotificationRead,
+    markAllNotificationsRead,
 } from "@/services/notification.service";
 import { sendResponse } from "@/utils/response";
 import { ApiError } from "@/utils/error";
@@ -44,6 +46,33 @@ export const handleDeclineFollowRequest = async (req: Request, res: Response, ne
         }
         const data = await declineFollowRequest(currentUserId, requesterId as UserId);
         sendResponse(res, 200, data, "Follow request declined");
+    } catch (error) {
+        next(error);
+    }
+};
+
+export const handleMarkNotificationRead = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+        const userId = req.user?.id;
+        const id = req.params.id as string;
+        if (!userId) {
+            throw new ApiError("UNAUTHORIZED", 401);
+        }
+        await markNotificationRead(userId, id);
+        sendResponse(res, 200, null, "Notification marked as read");
+    } catch (error) {
+        next(error);
+    }
+};
+
+export const handleMarkAllNotificationsRead = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+        const userId = req.user?.id;
+        if (!userId) {
+            throw new ApiError("UNAUTHORIZED", 401);
+        }
+        await markAllNotificationsRead(userId);
+        sendResponse(res, 200, null, "All notifications marked as read");
     } catch (error) {
         next(error);
     }

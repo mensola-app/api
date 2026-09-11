@@ -31,6 +31,7 @@ import { hashPassword, comparePassword } from "@/utils/hash";
 import { sendEmailChangeVerificationCode } from "@/utils/email";
 import { authQueries } from "@/queries/auth.queries";
 import { generateAccessToken, generateRefreshToken } from "@/utils/jwt";
+import { createNotification } from "./notification.service";
 
 /**
  * Retrieves full user profile information along with statistics and mutual relationship details.
@@ -212,6 +213,38 @@ export const follow = async (
 
     await pool.query(userQueries.actions.follow, [dto.followerId, dto.followingId, status]);
 
+    // Fetch follower details to compose push notification
+    const followerRes = await pool.query<{ username: string; fullname: string }>(
+        `SELECT username, fullname FROM "User" WHERE id = $1`,
+        [dto.followerId],
+    );
+    const follower = followerRes.rows[0];
+    const followerDisplayName = follower?.fullname || follower?.username || "Bir kullanıcı";
+
+    if (status === "pending") {
+        await createNotification({
+            recipientId: dto.followingId,
+            actorId: dto.followerId,
+            type: "follow_request",
+            targetType: "user",
+            targetId: dto.followerId,
+            pushTitle: "Yeni Takip İsteği",
+            pushBody: `${followerDisplayName} sana takip isteği gönderdi.`,
+            path: "/notifications",
+        });
+    } else {
+        await createNotification({
+            recipientId: dto.followingId,
+            actorId: dto.followerId,
+            type: "follow",
+            targetType: "user",
+            targetId: dto.followerId,
+            pushTitle: "Yeni Takipçi",
+            pushBody: `${followerDisplayName} seni takip etmeye başladı.`,
+            path: `/users/${dto.followerId}`,
+        });
+    }
+
     return {
         status,
         isFollowing: status === "accepted",
@@ -232,6 +265,13 @@ export const unfollow = async (dto: UnfollowDto): Promise<boolean> => {
     }
 
     await pool.query(userQueries.actions.unfollow, [dto.followerId, dto.followingId]);
+
+    // Remove any follow or follow_request notification from Notification table
+    await pool.query(
+        `DELETE FROM "Notification" 
+         WHERE "recipientId" = $1 AND "actorId" = $2 AND "type" IN ('follow', 'follow_request')`,
+        [dto.followingId, dto.followerId],
+    );
 
     return true;
 };

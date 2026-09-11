@@ -67,7 +67,7 @@ describe("Notification Endpoints", () => {
                 .post(`/v1/users/${privateUserId}/follow`)
                 .set("Authorization", `Bearer ${requesterUserToken}`);
 
-            expect(followRes.status).toBe(200);
+            expect(followRes.status).toBe(201);
             expect(followRes.body.data.isPending).toBe(true);
 
             // Private user fetches notifications
@@ -140,6 +140,55 @@ describe("Notification Endpoints", () => {
                 .set("Authorization", `Bearer ${privateUserToken}`);
 
             expect(notifRes.body.data.followRequests.length).toBe(0);
+        });
+    });
+
+    describe("PATCH /v1/notifications", () => {
+        let testNotifId = "";
+
+        beforeAll(async () => {
+            // Requester follows private user again to generate a notification
+            await request(app)
+                .post(`/v1/users/${privateUserId}/follow`)
+                .set("Authorization", `Bearer ${requesterUserToken}`);
+
+            const notifRes = await request(app)
+                .get("/v1/notifications")
+                .set("Authorization", `Bearer ${privateUserToken}`);
+
+            testNotifId = notifRes.body.data.notifications[0].id;
+        });
+
+        it("should mark a single notification as read", async () => {
+            const res = await request(app)
+                .patch(`/v1/notifications/${testNotifId}/read`)
+                .set("Authorization", `Bearer ${privateUserToken}`);
+
+            expect(res.status).toBe(200);
+            expect(res.body.success).toBe(true);
+
+            const notifRes = await request(app)
+                .get("/v1/notifications")
+                .set("Authorization", `Bearer ${privateUserToken}`);
+
+            const updated = notifRes.body.data.notifications.find((n: any) => n.id === testNotifId);
+            expect(updated.isRead).toBe(true);
+        });
+
+        it("should mark all notifications as read", async () => {
+            const res = await request(app)
+                .patch("/v1/notifications/read-all")
+                .set("Authorization", `Bearer ${privateUserToken}`);
+
+            expect(res.status).toBe(200);
+            expect(res.body.success).toBe(true);
+
+            const notifRes = await request(app)
+                .get("/v1/notifications")
+                .set("Authorization", `Bearer ${privateUserToken}`);
+
+            const unread = notifRes.body.data.notifications.filter((n: any) => !n.isRead);
+            expect(unread.length).toBe(0);
         });
     });
 });
