@@ -13,6 +13,7 @@ import homeRoutes from "./home.routes";
 import notificationRoutes from "./notification.routes";
 import commentRoutes from "./comment.routes";
 import deviceRoutes from "./device.routes";
+import shortLinkRoutes from "./shortLink.routes";
 
 import { Router } from "express";
 
@@ -34,5 +35,6 @@ v1Router.use("/home", homeRoutes);
 v1Router.use("/notifications", notificationRoutes);
 v1Router.use("/comments", commentRoutes);
 v1Router.use("/devices", deviceRoutes);
+v1Router.use("/short-links", shortLinkRoutes);
 
 export default v1Router;
