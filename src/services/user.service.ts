@@ -31,7 +31,7 @@ import { hashPassword, comparePassword } from "@/utils/hash";
 import { sendEmailChangeVerificationCode } from "@/utils/email";
 import { authQueries } from "@/queries/auth.queries";
 import { generateAccessToken, generateRefreshToken } from "@/utils/jwt";
-import { createNotification } from "./notification.service";
+import { createNotification, buildNotificationPushContent } from "./notification.service";
 
 /**
  * Retrieves full user profile information along with statistics and mutual relationship details.
@@ -219,7 +219,7 @@ export const follow = async (
         [dto.followerId],
     );
     const follower = followerRes.rows[0];
-    const followerDisplayName = follower?.fullname || follower?.username || "Bir kullanıcı";
+    const followerDisplayName = follower?.fullname || follower?.username;
 
     if (status === "pending") {
         await createNotification({
@@ -228,8 +228,12 @@ export const follow = async (
             type: "follow_request",
             targetType: "user",
             targetId: dto.followerId,
-            pushTitle: "Yeni Takip İsteği",
-            pushBody: `${followerDisplayName} sana takip isteği gönderdi.`,
+            resolvePushContent: (locale) =>
+                buildNotificationPushContent(
+                    "follow_request",
+                    { actorName: followerDisplayName },
+                    locale,
+                ),
             path: "/notifications",
         });
     } else {
@@ -239,8 +243,12 @@ export const follow = async (
             type: "follow",
             targetType: "user",
             targetId: dto.followerId,
-            pushTitle: "Yeni Takipçi",
-            pushBody: `${followerDisplayName} seni takip etmeye başladı.`,
+            resolvePushContent: (locale) =>
+                buildNotificationPushContent(
+                    "follow",
+                    { actorName: followerDisplayName },
+                    locale,
+                ),
             path: `/users/${dto.followerId}`,
         });
     }

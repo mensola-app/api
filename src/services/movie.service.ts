@@ -2,7 +2,7 @@ import pool from "@/config/db";
 import { movieQueries } from "@/queries/movie.queries";
 import { ApiError } from "@/utils/error";
 import { MovieId, TmdbId } from "@/types/common.types";
-import { createNotification } from "./notification.service";
+import { createNotification, buildNotificationPushContent } from "./notification.service";
 
 // Types & Interfaces
 import {
@@ -594,7 +594,7 @@ export const likeList = async (dto: LikeMovieListDto): Promise<LikeMovieListResp
                 [userId],
             );
             const liker = userRes.rows[0];
-            const likerName = liker?.fullname || liker?.username || "Bir kullanıcı";
+            const likerName = liker?.fullname || liker?.username;
 
             await createNotification({
                 recipientId: list.creatorId,
@@ -602,8 +602,16 @@ export const likeList = async (dto: LikeMovieListDto): Promise<LikeMovieListResp
                 type: "like",
                 targetType: "movie_list",
                 targetId: listId,
-                pushTitle: "Yeni Beğeni",
-                pushBody: `${likerName} "${list.title}" film listeni beğendi.`,
+                resolvePushContent: (locale) =>
+                    buildNotificationPushContent(
+                        "like",
+                        {
+                            actorName: likerName,
+                            targetType: "movie_list",
+                            targetTitle: list.title,
+                        },
+                        locale,
+                    ),
                 path: `/movie-lists/${listId}`,
             });
         }

@@ -129,4 +129,20 @@ export const MESSAGES = {
         EMAIL_CHANGE_BODY: (otpCode: string) =>
             `E-posta adresinizi değiştirmek için bu doğrulama kodunu kullanabilirsiniz: ${otpCode}\n\nBu kod 15 dakika boyunca geçerlidir. Eğer böyle bir istekte bulunmadıysanız, lütfen bu mesajı dikkate almayınız.`,
     },
+
+    NOTIFICATIONS: {
+        DEFAULT_ACTOR: "Bir kullanıcı",
+        FOLLOW_REQUEST_TITLE: "Yeni Takip İsteği",
+        FOLLOW_REQUEST_BODY: (actorName: string) => `${actorName} sana takip isteği gönderdi.`,
+        FOLLOW_TITLE: "Yeni Takipçi",
+        FOLLOW_BODY: (actorName: string) => `${actorName} seni takip etmeye başladı.`,
+        FOLLOW_ACCEPTED_TITLE: "Takip İsteğin Kabul Edildi",
+        FOLLOW_ACCEPTED_BODY: (actorName: string) => `${actorName} takip isteğini kabul etti.`,
+        LIKE_TITLE: "Yeni Beğeni",
+        LIKE_COMMENT_BODY: (actorName: string) => `${actorName} yorumunu beğendi.`,
+        LIKE_PLAYLIST_BODY: (actorName: string, title?: string) =>
+            title ? `${actorName} "${title}" çalma listeni beğendi.` : `${actorName} çalma listeni beğendi.`,
+        LIKE_MOVIE_LIST_BODY: (actorName: string, title?: string) =>
+            title ? `${actorName} "${title}" film listeni beğendi.` : `${actorName} film listeni beğendi.`,
+    },
 } as const;

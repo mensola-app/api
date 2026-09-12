@@ -4,11 +4,9 @@ import { NotificationItem, NotificationsData, NotificationType } from "@/types/n
 import { UserId } from "@/types/common.types";
 import { ApiError } from "@/utils/error";
 import { sendPushNotification } from "@/utils/pushNotification";
+import { getMessages } from "@/constants/messages";
 
-/**
- * Creates a notification record and sends an Expo push notification.
- */
-export const createNotification = async (params: {
+export interface CreateNotificationParams {
     recipientId: UserId | string;
     actorId: UserId | string;
     type: NotificationType;
@@ -16,9 +14,83 @@ export const createNotification = async (params: {
     targetId?: string | null;
     pushTitle?: string;
     pushBody?: string;
+    localizedPush?: {
+        tr?: { title: string; body: string };
+        en?: { title: string; body: string };
+        [locale: string]: { title: string; body: string } | undefined;
+    };
+    resolvePushContent?: (locale: string) => { title: string; body: string };
     path?: string;
     data?: Record<string, any>;
-}): Promise<void> => {
+}
+
+/**
+ * Builds localized push notification title and body according to notification type and device locale.
+ */
+export const buildNotificationPushContent = (
+    type: NotificationType,
+    options: {
+        actorName?: string;
+        targetType?: string | null;
+        targetTitle?: string;
+        isAcceptedFollow?: boolean;
+    },
+    locale: string,
+): { title: string; body: string } => {
+    const msgs = getMessages(locale).NOTIFICATIONS;
+    const actor = options.actorName || msgs.DEFAULT_ACTOR;
+
+    if (type === "follow_request") {
+        return {
+            title: msgs.FOLLOW_REQUEST_TITLE,
+            body: msgs.FOLLOW_REQUEST_BODY(actor),
+        };
+    }
+
+    if (type === "follow") {
+        if (options.isAcceptedFollow) {
+            return {
+                title: msgs.FOLLOW_ACCEPTED_TITLE,
+                body: msgs.FOLLOW_ACCEPTED_BODY(actor),
+            };
+        }
+        return {
+            title: msgs.FOLLOW_TITLE,
+            body: msgs.FOLLOW_BODY(actor),
+        };
+    }
+
+    if (type === "like") {
+        if (options.targetType === "playlist") {
+            return {
+                title: msgs.LIKE_TITLE,
+                body: msgs.LIKE_PLAYLIST_BODY(actor, options.targetTitle),
+            };
+        }
+        if (options.targetType === "movie_list") {
+            return {
+                title: msgs.LIKE_TITLE,
+                body: msgs.LIKE_MOVIE_LIST_BODY(actor, options.targetTitle),
+            };
+        }
+        if (options.targetType === "comment") {
+            return {
+                title: msgs.LIKE_TITLE,
+                body: msgs.LIKE_COMMENT_BODY(actor),
+            };
+        }
+    }
+
+    return {
+        title: msgs.LIKE_TITLE,
+        body: `${actor}`,
+    };
+};
+
+/**
+ * Creates a notification record and sends an Expo push notification.
+ */
+export const createNotification = async (params: CreateNotificationParams): Promise<void> => {
     // Avoid sending notification to oneself
     if (params.recipientId === params.actorId) {
         return;
@@ -42,8 +114,14 @@ export const createNotification = async (params: {
         params.targetId ?? null,
     ]);
 
-    // If push notification content is provided, send push notification
-    if (params.pushTitle && params.pushBody) {
+    const hasPush = Boolean(
+        params.resolvePushContent ||
+        params.localizedPush ||
+        (params.pushTitle && params.pushBody)
+    );
+
+    // If push notification content or resolver is provided, send push notification
+    if (hasPush) {
         // Resolve default path for deep linking if not explicitly provided
         const resolvedPath =
             params.path ??
@@ -62,6 +140,8 @@ export const createNotification = async (params: {
         await sendPushNotification(params.recipientId, {
             title: params.pushTitle,
             body: params.pushBody,
+            localized: params.localizedPush,
+            resolveContent: params.resolvePushContent,
             data: {
                 type: params.type,
                 actorId: params.actorId,
@@ -143,7 +223,7 @@ export const acceptFollowRequest = async (currentUserId: UserId, requesterId: Us
         [currentUserId],
     );
     const currentUser = currentUserRes.rows[0];
-    const displayName = currentUser?.fullname || currentUser?.username || "Bir kullanıcı";
+    const displayName = currentUser?.fullname || currentUser?.username;
 
     // Notify the requester that their follow request was accepted
     await createNotification({
@@ -152,8 +232,12 @@ export const acceptFollowRequest = async (currentUserId: UserId, requesterId: Us
         type: "follow",
         targetType: "user",
         targetId: currentUserId,
-        pushTitle: "Takip İsteğin Kabul Edildi",
-        pushBody: `${displayName} takip isteğini kabul etti.`,
+        resolvePushContent: (locale) =>
+            buildNotificationPushContent(
+                "follow",
+                { actorName: displayName, isAcceptedFollow: true },
+                locale,
+            ),
         path: `/users/${currentUserId}`,
     });
 

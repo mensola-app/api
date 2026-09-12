@@ -73,5 +73,38 @@ export const translateMessage = (message: string, lang?: string): string => {
         return `Invalid ${invalidFormatMatch[1]} format.`;
     }
 
+    // Dynamic Notification Patterns
+    const normalizeActor = (actor: string) => (actor === "Bir kullanıcı" ? "Someone" : actor);
+
+    const followMatch = message.match(/^(.+) seni takip etmeye başladı\.$/);
+    if (followMatch) {
+        return `${normalizeActor(followMatch[1])} started following you.`;
+    }
+
+    const followReqMatch = message.match(/^(.+) sana takip isteği gönderdi\.$/);
+    if (followReqMatch) {
+        return `${normalizeActor(followReqMatch[1])} sent you a follow request.`;
+    }
+
+    const followAccMatch = message.match(/^(.+) takip isteğini kabul etti\.$/);
+    if (followAccMatch) {
+        return `${normalizeActor(followAccMatch[1])} accepted your follow request.`;
+    }
+
+    const likeCommentMatch = message.match(/^(.+) yorumunu beğendi\.$/);
+    if (likeCommentMatch) {
+        return `${normalizeActor(likeCommentMatch[1])} liked your comment.`;
+    }
+
+    const likePlaylistMatch = message.match(/^(.+) "(.+)" çalma listeni beğendi\.$/);
+    if (likePlaylistMatch) {
+        return `${normalizeActor(likePlaylistMatch[1])} liked your playlist "${likePlaylistMatch[2]}".`;
+    }
+
+    const likeMovieListMatch = message.match(/^(.+) "(.+)" film listeni beğendi\.$/);
+    if (likeMovieListMatch) {
+        return `${normalizeActor(likeMovieListMatch[1])} liked your movie list "${likeMovieListMatch[2]}".`;
+    }
+
     return message;
 };

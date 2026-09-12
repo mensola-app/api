@@ -2,7 +2,7 @@ import pool from "@/config/db";
 import { commentQueries } from "@/queries/comment.queries";
 import { ApiError } from "@/utils/error";
 import { InteractionId } from "@/types/common.types";
-import { createNotification } from "./notification.service";
+import { createNotification, buildNotificationPushContent } from "./notification.service";
 import {
     CommentThreadItem,
     CommentThreadPagination,
@@ -149,7 +149,7 @@ export const toggleCommentLike = async (
                     [userId],
                 );
                 const liker = userRes.rows[0];
-                const likerName = liker?.fullname || liker?.username || "Bir kullanıcı";
+                const likerName = liker?.fullname || liker?.username;
 
                 notificationToSend = {
                     recipientId: comment.userId,
@@ -157,8 +157,12 @@ export const toggleCommentLike = async (
                     type: "like",
                     targetType: "comment",
                     targetId: commentId,
-                    pushTitle: "Yeni Beğeni",
-                    pushBody: `${likerName} yorumunu beğendi.`,
+                    resolvePushContent: (locale) =>
+                        buildNotificationPushContent(
+                            "like",
+                            { actorName: likerName, targetType: "comment" },
+                            locale,
+                        ),
                     path: `/comments/${commentId}`,
                 };
             }

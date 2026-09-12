@@ -129,4 +129,20 @@ export const MESSAGES = {
         EMAIL_CHANGE_BODY: (otpCode: string) =>
             `You can use this verification code to change your email address: ${otpCode}\n\nThis code is valid for 15 minutes. If you did not request this, please disregard this message.`,
     },
+
+    NOTIFICATIONS: {
+        DEFAULT_ACTOR: "Someone",
+        FOLLOW_REQUEST_TITLE: "New Follow Request",
+        FOLLOW_REQUEST_BODY: (actorName: string) => `${actorName} sent you a follow request.`,
+        FOLLOW_TITLE: "New Follower",
+        FOLLOW_BODY: (actorName: string) => `${actorName} started following you.`,
+        FOLLOW_ACCEPTED_TITLE: "Follow Request Accepted",
+        FOLLOW_ACCEPTED_BODY: (actorName: string) => `${actorName} accepted your follow request.`,
+        LIKE_TITLE: "New Like",
+        LIKE_COMMENT_BODY: (actorName: string) => `${actorName} liked your comment.`,
+        LIKE_PLAYLIST_BODY: (actorName: string, title?: string) =>
+            title ? `${actorName} liked your playlist "${title}".` : `${actorName} liked your playlist.`,
+        LIKE_MOVIE_LIST_BODY: (actorName: string, title?: string) =>
+            title ? `${actorName} liked your movie list "${title}".` : `${actorName} liked your movie list.`,
+    },
 } as const;

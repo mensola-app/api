@@ -26,7 +26,7 @@ import {
 import { PlaylistId, UserId } from "@/types/common.types";
 import { ApiError } from "@/utils/error";
 import { upsertInteractionComment } from "@/utils/interaction";
-import { createNotification } from "./notification.service";
+import { createNotification, buildNotificationPushContent } from "./notification.service";
 
 /**
  * Retrieves playlists for a specific user.
@@ -262,7 +262,7 @@ export const likePlaylist = async (dto: LikePlaylistDto): Promise<LikePlaylistRe
                 [userId],
             );
             const liker = userRes.rows[0];
-            const likerName = liker?.fullname || liker?.username || "Bir kullanıcı";
+            const likerName = liker?.fullname || liker?.username;
 
             await createNotification({
                 recipientId: playlist.creatorId,
@@ -270,8 +270,16 @@ export const likePlaylist = async (dto: LikePlaylistDto): Promise<LikePlaylistRe
                 type: "like",
                 targetType: "playlist",
                 targetId: playlistId,
-                pushTitle: "Yeni Beğeni",
-                pushBody: `${likerName} "${playlist.title}" çalma listeni beğendi.`,
+                resolvePushContent: (locale) =>
+                    buildNotificationPushContent(
+                        "like",
+                        {
+                            actorName: likerName,
+                            targetType: "playlist",
+                            targetTitle: playlist.title,
+                        },
+                        locale,
+                    ),
                 path: `/playlists/${playlistId}`,
             });
         }

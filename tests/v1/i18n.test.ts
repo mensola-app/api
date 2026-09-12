@@ -192,4 +192,45 @@ describe("i18n Infrastructure Tests", () => {
             );
         });
     });
+
+    describe("Notification Messages Localization", () => {
+        it("should translate notification titles to English", () => {
+            expect(translateMessage("Yeni Takipçi", "en")).toBe("New Follower");
+            expect(translateMessage("Yeni Takip İsteği", "en")).toBe("New Follow Request");
+            expect(translateMessage("Takip İsteğin Kabul Edildi", "en")).toBe("Follow Request Accepted");
+            expect(translateMessage("Yeni Beğeni", "en")).toBe("New Like");
+        });
+
+        it("should translate dynamic notification bodies to English", () => {
+            expect(translateMessage("ahmet seni takip etmeye başladı.", "en")).toBe(
+                "ahmet started following you.",
+            );
+            expect(translateMessage("Bir kullanıcı seni takip etmeye başladı.", "en")).toBe(
+                "Someone started following you.",
+            );
+            expect(translateMessage("ahmet sana takip isteği gönderdi.", "en")).toBe(
+                "ahmet sent you a follow request.",
+            );
+            expect(translateMessage("ahmet takip isteğini kabul etti.", "en")).toBe(
+                "ahmet accepted your follow request.",
+            );
+            expect(translateMessage("ahmet yorumunu beğendi.", "en")).toBe(
+                "ahmet liked your comment.",
+            );
+            expect(translateMessage('ahmet "Rock Hits" çalma listeni beğendi.', "en")).toBe(
+                'ahmet liked your playlist "Rock Hits".',
+            );
+            expect(translateMessage('ahmet "En İyiler" film listeni beğendi.', "en")).toBe(
+                'ahmet liked your movie list "En İyiler".',
+            );
+        });
+
+        it("should preserve original Turkish text when language is 'tr'", () => {
+            expect(translateMessage("Yeni Takipçi", "tr")).toBe("Yeni Takipçi");
+            expect(translateMessage("ahmet seni takip etmeye başladı.", "tr")).toBe(
+                "ahmet seni takip etmeye başladı.",
+            );
+        });
+    });
 });
+
