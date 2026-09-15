@@ -19,6 +19,7 @@ export interface IUser {
     deletedAt?: Date | string | null;
     createdAt?: Date | string;
     updatedAt?: Date | string;
+    subscriptionTier?: string;
 }
 
 export interface ISession {

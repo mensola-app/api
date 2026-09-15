@@ -27,6 +27,7 @@ export const userQueries = {
                     u.fullname,
                     u.bio,
                     u."isPrivate",
+                    u."subscriptionTier",
                     CASE 
                         WHEN u."isPrivate" = false THEN true
                         WHEN u.id = $2::uuid THEN true
@@ -63,6 +64,7 @@ export const userQueries = {
                 v.fullname,
                 v.bio,
                 v."isPrivate",
+                v."subscriptionTier",
                 v.has_access AS "hasAccess",
                 v.is_following AS "isFollowingByMe",
                 v.is_pending AS "isPendingByMe",
