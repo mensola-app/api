@@ -1,6 +1,6 @@
 import { mapGenreIdsToNames } from "@/constants/tmdb";
 import { TmdbId } from "@/types/common.types";
-import { IMovie } from "@/types/movie.types";
+import { IMovie, IMovieCredits } from "@/types/movie.types";
 import { ITmdbMovie, SearchMovieResult, TrendMoviesResult } from "@/types/tmdb.types";
 
 const TMDB_BASE_URL = "https://api.themoviedb.org/3";
@@ -14,7 +14,7 @@ export const getTmdbImage = (path: string | null, size: "w342" | "w500" | "w780"
 export const tmdbService = {
     searchMovie: async (query: string, page: number = 1) => {
         const res = await fetch(
-            `${TMDB_BASE_URL}/search/movie?query=${encodeURIComponent(query)}&page=${page}&language=tr-TR`,
+            `${TMDB_BASE_URL}/search/movie?query=${encodeURIComponent(query)}&page=${page}&language=en-US`,
             { headers: { Authorization: `Bearer ${TMDB_TOKEN}`, accept: "application/json" } },
         );
 
@@ -66,11 +66,52 @@ export const tmdbService = {
     },
 
     getMovieByTmdbId: async (tmdbId: TmdbId) => {
-        const res = await fetch(`https://api.themoviedb.org/3/movie/${tmdbId}`, {
+        const res = await fetch(`${TMDB_BASE_URL}/movie/${tmdbId}?language=en-US&append_to_response=credits`, {
             headers: { Authorization: `Bearer ${TMDB_TOKEN}`, accept: "application/json" },
         });
 
         const movieData = (await res.json()) as ITmdbMovie;
+
+        // Parse credits
+        let credits: IMovieCredits | undefined;
+
+        if (movieData.credits) {
+            const { cast, crew } = movieData.credits;
+
+            const topCast = [...cast]
+                .sort((a, b) => a.order - b.order)
+                .slice(0, 10)
+                .map((c) => ({
+                    id: c.id,
+                    name: c.name,
+                    profilePath: getTmdbImage(c.profile_path),
+                    character: c.character,
+                }));
+
+            const WRITER_JOBS = ["Screenplay", "Screenstory", "Writer"];
+
+            const directors = crew
+                .filter((c) => c.job === "Director")
+                .map((c) => ({ id: c.id, name: c.name, profilePath: getTmdbImage(c.profile_path) }));
+
+            // Deduplicate writers by id (same person can have multiple writing credits)
+            const writersMap = new Map<number, { id: number; name: string; profilePath: string }>();
+            crew.filter((c) => WRITER_JOBS.includes(c.job)).forEach((c) => {
+                if (!writersMap.has(c.id)) {
+                    writersMap.set(c.id, { id: c.id, name: c.name, profilePath: getTmdbImage(c.profile_path) });
+                }
+            });
+            const writers = Array.from(writersMap.values());
+
+            const cinematographers = crew
+                .filter((c) => c.job === "Director of Photography")
+                .map((c) => ({ id: c.id, name: c.name, profilePath: getTmdbImage(c.profile_path) }));
+
+            credits = {
+                cast: topCast,
+                crew: { directors, writers, cinematographers },
+            };
+        }
 
         const movie: Omit<IMovie, "id"> = {
             tmdbId: movieData.id,
@@ -81,6 +122,7 @@ export const tmdbService = {
             genres: movieData.genres ? movieData.genres.map((g) => g.name) : [],
             duration: movieData.runtime || undefined,
             overview: movieData.overview || undefined,
+            credits,
         };
 
         return movie;

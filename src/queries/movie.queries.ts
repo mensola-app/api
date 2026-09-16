@@ -480,8 +480,8 @@ export const movieQueries = {
             WHERE m."tmdbId" = $1`,
 
         insertMovie: `
-            INSERT INTO "Movie" ("tmdbId", title, poster, "releaseDate", rating, genres, duration, overview, "createdAt")
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
+            INSERT INTO "Movie" ("tmdbId", title, poster, "releaseDate", rating, genres, duration, overview, credits, "createdAt")
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())
             RETURNING id;`,
 
         /**

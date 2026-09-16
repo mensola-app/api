@@ -347,6 +347,7 @@ export const addToFavorites = async (
                 tmdbMovie.genres,
                 tmdbMovie.duration,
                 tmdbMovie.overview,
+                tmdbMovie.credits ? JSON.stringify(tmdbMovie.credits) : null,
             ];
             const insertResult = await pool.query(movieQueries.movies.insertMovie, values);
             targetMovieId = insertResult.rows[0].id;
@@ -751,6 +752,7 @@ export const findOrFetchFromTmdb = async (dto: FindOrFetchFromTmdbDto): Promise<
             tmdbMovie.genres,
             tmdbMovie.duration,
             tmdbMovie.overview,
+            tmdbMovie.credits ? JSON.stringify(tmdbMovie.credits) : null,
         ];
 
         const insertResult = await pool.query(movieQueries.movies.insertMovie, values);

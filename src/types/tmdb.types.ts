@@ -1,5 +1,21 @@
 import { TmdbId } from "./common.types";
 
+export interface ITmdbCastMember {
+    id: number;
+    name: string;
+    profile_path: string | null;
+    character: string;
+    order: number;
+}
+
+export interface ITmdbCrewMember {
+    id: number;
+    name: string;
+    profile_path: string | null;
+    department: string;
+    job: string;
+}
+
 export interface ITmdbMovie {
     id: TmdbId;
     original_title: string;
@@ -13,6 +29,10 @@ export interface ITmdbMovie {
     genre_ids: number[];
     genres?: { id: number; name: string }[];
     runtime?: number;
+    credits?: {
+        cast: ITmdbCastMember[];
+        crew: ITmdbCrewMember[];
+    };
 }
 
 export type SearchMovieResult = {

@@ -15,6 +15,22 @@ import {
 // Core Entities & Relational Models
 // ==========================================
 
+export interface IMovieCreditPerson {
+    id: number;
+    name: string;
+    profilePath: string;
+    character?: string;
+}
+
+export interface IMovieCredits {
+    cast: IMovieCreditPerson[];
+    crew: {
+        directors: IMovieCreditPerson[];
+        writers: IMovieCreditPerson[];
+        cinematographers: IMovieCreditPerson[];
+    };
+}
+
 export interface IMovie {
     id: MovieId;
     tmdbId: TmdbId;
@@ -25,6 +41,7 @@ export interface IMovie {
     genres?: string[];
     duration?: number;
     overview?: string;
+    credits?: IMovieCredits;
     createdAt?: Date | string;
 }
 
@@ -90,7 +107,6 @@ export type FindOrFetchFromTmdbDto = { tmdbId: TmdbId; userId?: UserId };
 export type UpdateWatchedAtDto = { watchedMovieId: WatchedMovieId; userId: UserId; watchedAt: Date | string };
 export type DeleteWatchedByIdDto = { watchedMovieId: WatchedMovieId; userId: UserId };
 export type GetWatchedByMovieIdDto = { movieId: MovieId; userId: UserId };
-
 
 // ==========================================
 // API Responses & Nested Projections
