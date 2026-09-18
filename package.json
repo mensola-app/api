@@ -13,7 +13,8 @@
         "docker:test:down": "docker compose -f docker-compose.test.yaml down -v",
         "docker:prod": "docker compose up -d --build --remove-orphans",
         "migrate:dev": "tsx src/scripts/migrate.ts",
-        "migrate:prod": "node dist/scripts/migrate.js"
+        "migrate:prod": "node dist/scripts/migrate.js",
+        "backfill:credits": "tsx src/scripts/backfillCredits.ts"
     },
     "keywords": [],
     "author": "",
