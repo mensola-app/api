@@ -2,16 +2,33 @@ import { SpotifyId } from "@/types/common.types";
 import { IAlbum, IArtist, ITrack } from "@/types/music.types";
 import { GetNewAlbumsResult, ISpotifyArtist, ISpotifyTrack, SearchTrackResult } from "@/types/spotify.types";
 
-let spotifyAccessToken = "";
-let tokenExpiresAt = 0;
+import { getCache, setCache } from "@/utils/cache";
 
+const SPOTIFY_TOKEN_CACHE_KEY = "spotify:client_token";
+
+// In-memory fallback in case Redis is temporarily unreachable
+let inMemorySpotifyToken = "";
+let inMemoryTokenExpiresAt = 0;
+
+/**
+ * Retrieves a valid Spotify Client Credentials access token.
+ * Checks Redis first; if missing, requests a fresh token from Spotify API,
+ * caches it in Redis with safety TTL margin, and updates in-memory fallback.
+ */
 const getAccessToken = async (): Promise<string> => {
-    const now = Date.now();
-
-    if (spotifyAccessToken && now < tokenExpiresAt) {
-        return spotifyAccessToken;
+    // 1. Try to get token from Redis
+    const cachedToken = await getCache<string>(SPOTIFY_TOKEN_CACHE_KEY);
+    if (cachedToken) {
+        return cachedToken;
     }
 
+    // 2. Check in-memory fallback if Redis was empty/unavailable
+    const now = Date.now();
+    if (inMemorySpotifyToken && now < inMemoryTokenExpiresAt) {
+        return inMemorySpotifyToken;
+    }
+
+    // 3. Request new token from Spotify
     const credentials = Buffer.from(`${process.env.SPOTIFY_CLIENT_ID}:${process.env.SPOTIFY_CLIENT_SECRET}`).toString(
         "base64",
     );
@@ -25,12 +42,24 @@ const getAccessToken = async (): Promise<string> => {
         body: "grant_type=client_credentials",
     });
 
+    if (!response.ok) {
+        throw new Error(`Failed to fetch Spotify access token: HTTP ${response.status}`);
+    }
+
     const data = await response.json();
-    spotifyAccessToken = data.access_token;
+    if (!data.access_token) {
+        throw new Error("Spotify response did not contain access_token");
+    }
 
-    tokenExpiresAt = now + (data.expires_in - 300) * 1000;
+    // Apply safety margin (e.g. 5 minutes before actual expiry)
+    const ttlSeconds = Math.max((data.expires_in || 3600) - 300, 60);
 
-    return spotifyAccessToken;
+    // Save to Redis and update in-memory fallback
+    await setCache(SPOTIFY_TOKEN_CACHE_KEY, data.access_token, ttlSeconds);
+    inMemorySpotifyToken = data.access_token;
+    inMemoryTokenExpiresAt = now + ttlSeconds * 1000;
+
+    return data.access_token;
 };
 
 const getAlbumCover = (images?: Array<{ url: string; height: number; width: number }>) => {
