@@ -1,4 +1,4 @@
-export type ShortLinkTargetType = "movie_list" | "playlist" | "user";
+export type ShortLinkTargetType = "movie_list" | "playlist" | "user" | "artist";
 
 export interface ShortLink {
     code: string;

@@ -62,12 +62,13 @@ export const redirectShortLink = async (
         const code = String((req.params as any).code || req.params[0]);
         const result = await shortLinkService.getShortLinkByCode(code);
 
-        const route =
-            result.targetType === "movie_list"
-                ? "movie-lists"
-                : result.targetType === "user"
-                  ? "users"
-                  : "playlists";
+        const routeMap: Record<string, string> = {
+            movie_list: "movie-lists",
+            user: "users",
+            playlist: "playlists",
+            artist: "artists",
+        };
+        const route = routeMap[result.targetType] || "playlists";
 
         const webBaseUrl = process.env.WEB_URL || "https://mensola.app";
         const redirectUrl = `${webBaseUrl}/${route}/${result.targetId}`;

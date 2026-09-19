@@ -2,8 +2,8 @@ import { z } from "zod";
 
 export const createShortLinkSchema = z.object({
     body: z.object({
-        targetType: z.enum(["movie_list", "playlist", "user"]),
-        targetId: z.string().uuid(),
+        targetType: z.enum(["movie_list", "playlist", "user", "artist"]),
+        targetId: z.string().min(1).max(255),
     }),
 });
 
