@@ -1,6 +1,6 @@
 import pool from "@/config/db";
 import crypto from "crypto";
-import { IMovieList, MovieListType } from "@/types/movie.types";
+import { MovieListType } from "@/types/movie.types";
 
 /**
  * Creates a mock movie directly in the database for testing.
@@ -245,5 +245,16 @@ export const addTestTrackToPlaylist = async (playlistId: string, trackId: string
         RETURNING *;
     `;
     const result = await pool.query(query, [playlistId, trackId, addedBy]);
+    return result.rows[0];
+};
+
+export const createTestArtistFollow = async (userId: string, artistId: string) => {
+    const query = `
+        INSERT INTO "ArtistFollow" ("userId", "artistId")
+        VALUES ($1, $2)
+        ON CONFLICT ("userId", "artistId") DO NOTHING
+        RETURNING *;
+    `;
+    const result = await pool.query(query, [userId, artistId]);
     return result.rows[0];
 };
