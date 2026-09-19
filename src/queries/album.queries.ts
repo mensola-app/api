@@ -12,7 +12,7 @@ export const albumQueries = {
                 true AS "isLiked",
                 COALESCE(
                     (
-                        SELECT json_agg(json_build_object('id', a."id", 'name', a."name"))
+                        SELECT json_agg(json_build_object('id', a."id", 'spotifyId', a."spotifyId", 'name', a."name"))
                         FROM "AlbumArtist" aa
                         JOIN "Artist" a ON aa."artistId" = a."id"
                         WHERE aa."albumId" = al."id"
@@ -74,6 +74,7 @@ export const albumQueries = {
                     SELECT json_agg(
                         json_build_object(
                             'id', a."id", 
+                            'spotifyId', a."spotifyId",
                             'name', a."name",
                             'avatar', a."image"
                         )
@@ -198,7 +199,7 @@ export const albumQueries = {
                 ) AS "isLiked",
                 COALESCE(
                     (
-                        SELECT json_agg(json_build_object('id', a."id", 'name', a."name"))
+                        SELECT json_agg(json_build_object('id', a."id", 'spotifyId', a."spotifyId", 'name', a."name"))
                         FROM "TrackArtist" ta
                         JOIN "Artist" a ON ta."artistId" = a."id"
                         WHERE ta."trackId" = t."id"

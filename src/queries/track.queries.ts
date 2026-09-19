@@ -16,6 +16,7 @@ export const trackQueries = {
                     SELECT json_agg(
                         json_build_object(
                             'id', a."id", 
+                            'spotifyId', a."spotifyId",
                             'name', a."name",
                             'avatar', a."image"
                         )
@@ -139,7 +140,7 @@ export const trackQueries = {
                 true AS "isLiked",
                 COALESCE(
                     (
-                        SELECT json_agg(json_build_object('id', a."id", 'name', a."name"))
+                        SELECT json_agg(json_build_object('id', a."id", 'spotifyId', a."spotifyId", 'name', a."name"))
                         FROM "TrackArtist" ta
                         JOIN "Artist" a ON ta."artistId" = a."id"
                         WHERE ta."trackId" = t."id"
@@ -200,7 +201,7 @@ export const trackQueries = {
                 true AS "isFavorite",
                 COALESCE(
                     (
-                        SELECT json_agg(json_build_object('id', a."id", 'name', a."name"))
+                        SELECT json_agg(json_build_object('id', a."id", 'spotifyId', a."spotifyId", 'name', a."name"))
                         FROM "TrackArtist" ta
                         JOIN "Artist" a ON ta."artistId" = a."id"
                         WHERE ta."trackId" = t."id"
