@@ -92,4 +92,16 @@ export async function deleteCachePattern(pattern: string): Promise<void> {
     }
 }
 
+/**
+ * Invalidates all cached profile views (self, viewer-specific, public) for the specified user(s).
+ */
+export async function invalidateUserProfile(userId: string | string[]): Promise<void> {
+    const userIds = Array.isArray(userId) ? userId : [userId];
+    for (const id of userIds) {
+        if (id) {
+            await deleteCachePattern(`user:profile:${id}:*`);
+        }
+    }
+}
+
 

@@ -4,6 +4,7 @@ import { artistQueries } from "@/queries/artist.queries";
 import { trackQueries } from "@/queries/track.queries";
 import { spotifyService } from "@/services/spotify.service";
 import { AlbumId, SpotifyId, UserId } from "@/types/common.types";
+import { invalidateUserProfile } from "@/utils/cache";
 import {
     GetLikedAlbumsDto,
     GetLikedAlbumsResponse,
@@ -101,6 +102,7 @@ export const likeAlbum = async (dto: LikeAlbumDto): Promise<LikeAlbumResponse> =
     }
 
     const result = await pool.query<LikeAlbumResponse>(albumQueries.likes.add, [userId, albumId]);
+    await invalidateUserProfile(userId);
     return result.rows[0];
 };
 
@@ -119,6 +121,7 @@ export const unlikeAlbum = async (dto: UnlikeAlbumDto): Promise<UnlikeAlbumRespo
     }
 
     const result = await pool.query<UnlikeAlbumResponse>(albumQueries.likes.remove, [userId, albumId]);
+    await invalidateUserProfile(userId);
     return result.rows[0] || { albumId, isLiked: false };
 };
 

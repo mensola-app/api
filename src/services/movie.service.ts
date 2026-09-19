@@ -58,6 +58,7 @@ import {
 } from "@/types/movie.types";
 import { upsertInteractionComment } from "@/utils/interaction";
 import { tmdbService } from "./tmdb.service";
+import { invalidateUserProfile } from "@/utils/cache";
 
 /**
  * Retrieves a paginated list of favorite movies for a given user.
@@ -189,6 +190,8 @@ export const createList = async (dto: CreateMovieListDto): Promise<IMovieList> =
         throw new ApiError("ACTION_FAILED_NO_PERMISSION", 500);
     }
 
+    await invalidateUserProfile(dto.creatorId);
+
     return movieList;
 };
 
@@ -204,6 +207,7 @@ export const markAsWatched = async (dto: UserMovieActionDto & { watchedAt?: Date
         dto.movieId,
         dto.watchedAt ?? null,
     ]);
+    await invalidateUserProfile(dto.userId);
     return result.rows[0];
 };
 
@@ -247,6 +251,8 @@ export const deleteWatchedById = async (dto: DeleteWatchedByIdDto): Promise<IWat
         throw new ApiError("NOT_FOUND_OR_NO_PERMISSION", 404);
     }
 
+    await invalidateUserProfile(dto.userId);
+
     return deleted;
 };
 
@@ -273,6 +279,7 @@ export const getWatchedByMovieId = async (dto: GetWatchedByMovieIdDto): Promise<
  */
 export const unmarkAsWatched = async (dto: UserMovieActionDto): Promise<IWatchedMovie[]> => {
     const result = await pool.query<IWatchedMovie>(movieQueries.movies.watched.remove, [dto.userId, dto.movieId]);
+    await invalidateUserProfile(dto.userId);
     return result.rows;
 };
 
@@ -298,6 +305,7 @@ export const getMovie = async (dto: GetMovieDto): Promise<GetMovieResponse> => {
  */
 export const addToWatchlist = async (dto: UserMovieActionDto): Promise<IMovieListItem> => {
     const result = await pool.query<IMovieListItem>(movieQueries.movies.watchlist.add, [dto.userId, dto.movieId]);
+    await invalidateUserProfile(dto.userId);
     return result.rows[0];
 };
 
@@ -310,6 +318,7 @@ export const addToWatchlist = async (dto: UserMovieActionDto): Promise<IMovieLis
  */
 export const removeFromWatchlist = async (dto: UserMovieActionDto): Promise<IMovieListItem[]> => {
     const result = await pool.query<IMovieListItem>(movieQueries.movies.watchlist.remove, [dto.userId, dto.movieId]);
+    await invalidateUserProfile(dto.userId);
     return result.rows;
 };
 
@@ -373,6 +382,7 @@ export const addToFavorites = async (
 
     // 4. Favoriye ekle
     const result = await pool.query<IMovieListItem>(movieQueries.movies.favorites.add, [userId, targetMovieId]);
+    await invalidateUserProfile(userId);
     return result.rows[0];
 };
 
@@ -384,6 +394,7 @@ export const addToFavorites = async (
  */
 export const removeFromFavorites = async (dto: UserMovieActionDto): Promise<IMovieListItem[]> => {
     const result = await pool.query<IMovieListItem>(movieQueries.movies.favorites.remove, [dto.userId, dto.movieId]);
+    await invalidateUserProfile(dto.userId);
     return result.rows;
 };
 
@@ -427,6 +438,7 @@ export const deleteList = async (dto: DeleteListDto): Promise<void> => {
     const { listId, userId } = dto;
 
     const result = await pool.query<IMovieList>(movieQueries.lists.delete, [listId, userId]);
+    await invalidateUserProfile(userId);
     const deletedList = result.rows[0];
 
     if (!deletedList) {
@@ -618,6 +630,8 @@ export const likeList = async (dto: LikeMovieListDto): Promise<LikeMovieListResp
         }
     }
 
+    await invalidateUserProfile(dto.userId);
+
     return result.rows[0];
 };
 
@@ -643,6 +657,8 @@ export const unlikeList = async (dto: UnlikeMovieListDto): Promise<UnlikeMovieLi
         [userId, listId],
     );
 
+    await invalidateUserProfile(dto.userId);
+
     return result.rows[0];
 };
 
@@ -661,6 +677,8 @@ export const likeMovie = async (dto: LikeMovieDto): Promise<LikeMovieResponse> =
         throw new ApiError("ACTION_FAILED_NO_PERMISSION", 404);
     }
 
+    await invalidateUserProfile(dto.userId);
+
     return result.rows[0];
 };
 
@@ -678,6 +696,8 @@ export const unlikeMovie = async (dto: UnlikeMovieDto): Promise<UnlikeMovieRespo
     if (result.rowCount === 0) {
         throw new ApiError("ACTION_FAILED_NO_PERMISSION", 404);
     }
+
+    await invalidateUserProfile(dto.userId);
 
     return result.rows[0];
 };

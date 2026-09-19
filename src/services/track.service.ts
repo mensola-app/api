@@ -13,6 +13,7 @@ import { upsertInteractionComment } from "@/utils/interaction";
 import { spotifyService } from "./spotify.service";
 import { albumQueries } from "@/queries/album.queries";
 import { artistQueries } from "@/queries/artist.queries";
+import { invalidateUserProfile } from "@/utils/cache";
 
 /**
  * Retrieves a paginated list of liked tracks for a user.
@@ -91,6 +92,7 @@ export const addTrackToFavorites = async (
     }
 
     const result = await pool.query(trackQueries.favorites.add, [userId, targetTrackId]);
+    await invalidateUserProfile(userId);
     return result.rows[0];
 };
 
@@ -102,6 +104,7 @@ export const removeTrackFromFavorites = async (trackId: string, userId: string) 
     }
 
     const result = await pool.query(trackQueries.favorites.remove, [userId, trackId]);
+    await invalidateUserProfile(userId);
     return result.rows[0] || { trackId, isFavorite: false };
 };
 
@@ -135,6 +138,7 @@ export const likeTrack = async (trackId: string, userId: string) => {
     }
 
     const result = await pool.query(trackQueries.likes.add, [userId, trackId]);
+    await invalidateUserProfile(userId);
     return result.rows[0];
 };
 
@@ -153,6 +157,7 @@ export const unlikeTrack = async (trackId: string, userId: string) => {
     }
 
     const result = await pool.query(trackQueries.likes.remove, [userId, trackId]);
+    await invalidateUserProfile(userId);
     return result.rows[0] || { trackId, isLiked: false };
 };
 

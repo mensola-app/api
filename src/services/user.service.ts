@@ -32,51 +32,63 @@ import { sendEmailChangeVerificationCode } from "@/utils/email";
 import { authQueries } from "@/queries/auth.queries";
 import { generateAccessToken, generateRefreshToken } from "@/utils/jwt";
 import { createNotification, buildNotificationPushContent } from "./notification.service";
+import { getOrSetCache, invalidateUserProfile } from "@/utils/cache";
+
+const USER_PROFILE_CACHE_PREFIX = "user:profile:";
+const USER_PROFILE_CACHE_TTL_SECONDS = 5 * 60; // 5 minutes
 
 /**
  * Retrieves full user profile information along with statistics and mutual relationship details.
- * Converts raw PostgreSQL numeric counts to standard JavaScript numbers.
+ * Uses Redis caching with a 5-minute TTL to avoid running heavy aggregation queries on every view.
  *
  * @param dto - Contains targetUserId and optional viewerId
  * @returns Formatted user profile object
  * @throws ApiError (404) if the user profile does not exist
  */
 export const getUserProfile = async (dto: GetUserProfileDto): Promise<GetUserProfileResponse> => {
-    const result = await pool.query<GetUserProfileResponse>(userQueries.profile.get, [
-        dto.targetUserId,
-        dto.viewerId || null,
-    ]);
+    const cacheKey = `${USER_PROFILE_CACHE_PREFIX}${dto.targetUserId}:${dto.viewerId || "public"}`;
 
-    if (result.rows.length === 0) {
-        throw new ApiError("NOT_FOUND", 404);
-    }
+    return getOrSetCache<GetUserProfileResponse>(
+        cacheKey,
+        USER_PROFILE_CACHE_TTL_SECONDS,
+        async () => {
+            const result = await pool.query<GetUserProfileResponse>(userQueries.profile.get, [
+                dto.targetUserId,
+                dto.viewerId || null,
+            ]);
 
-    const rawData = result.rows[0];
+            if (result.rows.length === 0) {
+                throw new ApiError("NOT_FOUND", 404);
+            }
 
-    const profile: GetUserProfileResponse = {
-        ...rawData,
-        movieListCount: Number(rawData.movieListCount || 0),
-        playlistCount: Number(rawData.playlistCount || 0),
-        watchlistMoviesCount: Number(rawData.watchlistMoviesCount || 0),
-        watchedMoviesCount: Number(rawData.watchedMoviesCount || 0),
-        likedMoviesCount: Number(rawData.likedMoviesCount || 0),
-        likedTracksCount: Number(rawData.likedTracksCount || 0),
-        likedPlaylistsCount: Number(rawData.likedPlaylistsCount || 0),
-        likedMovieListsCount: Number(rawData.likedMovieListsCount || 0),
-        likedAlbumsCount: Number(rawData.likedAlbumsCount || 0),
-        followersCount: Number(rawData.followersCount || 0),
-        followingCount: Number(rawData.followingCount || 0),
-    };
+            const rawData = result.rows[0];
 
-    // Remove personal relationship context if viewing own profile or visiting unauthenticated
-    if (!dto.viewerId || dto.viewerId === dto.targetUserId) {
-        delete profile.mutualFollowers;
-        delete profile.isFollowingByMe;
-        delete profile.isPendingByMe;
-        delete profile.hasPendingRequestFromUser;
-    }
+            const profile: GetUserProfileResponse = {
+                ...rawData,
+                movieListCount: Number(rawData.movieListCount || 0),
+                playlistCount: Number(rawData.playlistCount || 0),
+                watchlistMoviesCount: Number(rawData.watchlistMoviesCount || 0),
+                watchedMoviesCount: Number(rawData.watchedMoviesCount || 0),
+                likedMoviesCount: Number(rawData.likedMoviesCount || 0),
+                likedTracksCount: Number(rawData.likedTracksCount || 0),
+                likedPlaylistsCount: Number(rawData.likedPlaylistsCount || 0),
+                likedMovieListsCount: Number(rawData.likedMovieListsCount || 0),
+                likedAlbumsCount: Number(rawData.likedAlbumsCount || 0),
+                followersCount: Number(rawData.followersCount || 0),
+                followingCount: Number(rawData.followingCount || 0),
+            };
 
-    return profile;
+            // Remove personal relationship context if viewing own profile or visiting unauthenticated
+            if (!dto.viewerId || dto.viewerId === dto.targetUserId) {
+                delete profile.mutualFollowers;
+                delete profile.isFollowingByMe;
+                delete profile.isPendingByMe;
+                delete profile.hasPendingRequestFromUser;
+            }
+
+            return profile;
+        },
+    );
 };
 
 /**
@@ -141,6 +153,8 @@ export const profileUpdate = async (dto: ProfileUpdateDto): Promise<ProfileUpdat
     if (result.rows.length === 0) {
         throw new ApiError("NOT_FOUND", 404);
     }
+
+    await invalidateUserProfile(dto.userId);
 
     return result.rows[0];
 };
@@ -253,6 +267,8 @@ export const follow = async (
         });
     }
 
+    await invalidateUserProfile([dto.followerId, dto.followingId]);
+
     return {
         status,
         isFollowing: status === "accepted",
@@ -280,6 +296,8 @@ export const unfollow = async (dto: UnfollowDto): Promise<boolean> => {
          WHERE "recipientId" = $1 AND "actorId" = $2 AND "type" IN ('follow', 'follow_request')`,
         [dto.followingId, dto.followerId],
     );
+
+    await invalidateUserProfile([dto.followerId, dto.followingId]);
 
     return true;
 };
@@ -335,6 +353,8 @@ export const updateUsername = async (dto: { userId: string; username: string }) 
         userQueries.profile.updateUsername,
         [dto.username, dto.userId],
     );
+
+    await invalidateUserProfile(dto.userId);
 
     return updateResult.rows[0];
 };
@@ -486,6 +506,8 @@ export const updateProfilePrivacy = async (
         throw new ApiError("NOT_FOUND", 404);
     }
 
+    await invalidateUserProfile(userId);
+
     return result.rows[0];
 };
 
@@ -503,6 +525,8 @@ export const softDeleteAccount = async (userId: string): Promise<void> => {
 
     // 2. Revoke all active sessions
     await pool.query(authQueries.session.deleteByUserId, [userId]);
+
+    await invalidateUserProfile(userId);
 };
 
 /**

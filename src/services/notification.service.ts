@@ -5,6 +5,7 @@ import { UserId } from "@/types/common.types";
 import { ApiError } from "@/utils/error";
 import { sendPushNotification } from "@/utils/pushNotification";
 import { getMessages } from "@/constants/messages";
+import { invalidateUserProfile } from "@/utils/cache";
 
 export interface CreateNotificationParams {
     recipientId: UserId | string;
@@ -241,6 +242,8 @@ export const acceptFollowRequest = async (currentUserId: UserId, requesterId: Us
         path: `/users/${currentUserId}`,
     });
 
+    await invalidateUserProfile([currentUserId, requesterId]);
+
     return { status: "accepted" as const };
 };
 
@@ -257,6 +260,8 @@ export const declineFollowRequest = async (currentUserId: UserId, requesterId: U
 
     // Remove the follow_request notification
     await pool.query(notificationQueries.deleteFollowRequestNotification, [currentUserId, requesterId]);
+
+    await invalidateUserProfile([currentUserId, requesterId]);
 
     return { status: "declined" as const };
 };

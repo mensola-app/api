@@ -6,7 +6,7 @@ import { sendPasswordResetEmail } from "@/utils/email";
 import { hashPassword, comparePassword } from "@/utils/hash";
 import { generateAccessToken, generateRefreshToken, verifyRefreshToken } from "@/utils/jwt";
 import { verifyGoogleToken } from "@/utils/google";
-import { getCache, setCache, deleteCache } from "@/utils/cache";
+import { getCache, setCache, deleteCache, invalidateUserProfile } from "@/utils/cache";
 
 import { authQueries } from "@/queries/auth.queries";
 import { userQueries } from "@/queries/user.queries";
@@ -256,6 +256,7 @@ export const reactivateUser = async (dto: LoginUserDto): Promise<LoginUserRespon
     // 3. Reactivate if soft-deleted
     if (dbUser.deletedAt) {
         await pool.query(authQueries.user.reactivate, [dbUser.id]);
+        await invalidateUserProfile(dbUser.id);
         dbUser.deletedAt = null;
     }
 
