@@ -1,8 +1,31 @@
 import { Request, Response, NextFunction } from "express";
-import { followArtist, unfollowArtist } from "@/services/artist.service";
+import { followArtist, unfollowArtist, getArtistById } from "@/services/artist.service";
 import { sendResponse } from "@/utils/response";
 import { TypedRequest } from "@/types/express.types";
 import { MESSAGES } from "@/constants/messages";
+
+/**
+ * Retrieves detailed artist info including top tracks and follow status.
+ *
+ * @route   GET /v1/artists/:id
+ * @access  Public / Optional Auth
+ */
+export const getArtistDetails = async (
+    req: TypedRequest<{ id: string }>,
+    res: Response,
+    next: NextFunction,
+) => {
+    try {
+        const id = req.params.id;
+        const currentUserId = req.user?.id;
+
+        const artist = await getArtistById(id, currentUserId);
+
+        return sendResponse(res, 200, artist);
+    } catch (error) {
+        next(error);
+    }
+};
 
 /**
  * Follows an artist by Spotify ID.
