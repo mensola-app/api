@@ -28,6 +28,39 @@ export async function getOrSetCache<T>(key: string, ttlSeconds: number, fetchFn:
 }
 
 /**
+ * Sets data in cache with an optional TTL.
+ */
+export async function setCache<T>(key: string, data: T, ttlSeconds?: number): Promise<void> {
+    try {
+        if (data !== null && data !== undefined) {
+            const serialized = JSON.stringify(data);
+            if (ttlSeconds) {
+                await redis.set(key, serialized, "EX", ttlSeconds);
+            } else {
+                await redis.set(key, serialized);
+            }
+        }
+    } catch (error) {
+        console.error(`[Redis Set Error] key: ${key}`, error);
+    }
+}
+
+/**
+ * Directly retrieves data from cache without a fallback fetcher.
+ */
+export async function getCache<T>(key: string): Promise<T | null> {
+    try {
+        const cachedData = await redis.get(key);
+        if (cachedData !== null) {
+            return JSON.parse(cachedData) as T;
+        }
+    } catch (error) {
+        console.error(`[Redis Get Error] key: ${key}`, error);
+    }
+    return null;
+}
+
+/**
  * Deletes cached data for the specified key(s).
  */
 export async function deleteCache(key: string | string[]): Promise<void> {
@@ -58,4 +91,5 @@ export async function deleteCachePattern(pattern: string): Promise<void> {
         console.error(`[Redis Scan & Del Error] pattern: ${pattern}`, error);
     }
 }
+
 
