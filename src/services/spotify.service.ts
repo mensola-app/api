@@ -309,7 +309,9 @@ export const spotifyService = {
     },
 
     /**
-     * Fetches the top tracks for an artist from Spotify API (market=TR).
+     * Fetches the top tracks for an artist from Spotify API.
+     * Note: Spotify API recently restricted the top-tracks endpoint for some credentials (returns 403).
+     * If 403 occurs, it throws a specific error so the caller can fallback to search.
      */
     getArtistTopTracks: async (spotifyId: SpotifyId) => {
         const token = await getAccessToken();
@@ -318,7 +320,12 @@ export const spotifyService = {
             headers: { Authorization: `Bearer ${token}` },
         });
 
-        if (!res.ok) throw new Error(`Spotify getArtistTopTracks failed: ${res.status}`);
+        if (!res.ok) {
+            if (res.status === 403) {
+                throw new Error(`FORBIDDEN_TOP_TRACKS`);
+            }
+            throw new Error(`Spotify getArtistTopTracks failed: ${res.status}`);
+        }
 
         const data = await res.json();
         const tracks: any[] = data.tracks ?? [];

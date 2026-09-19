@@ -55,10 +55,32 @@ export const getArtistById = async (
     if (dbId) {
         const dbResult = await pool.query(artistQueries.findById, [dbId]);
         artist = dbResult.rows[0];
+        if (!artist.image && artist.spotifyId) {
+            try {
+                const spotifyArtist = await spotifyService.getArtistBySpotifyId(artist.spotifyId as SpotifyId);
+                if (spotifyArtist.image) {
+                    await pool.query('UPDATE "Artist" SET image = $1 WHERE id = $2', [spotifyArtist.image, artist.id]);
+                    artist.image = spotifyArtist.image;
+                }
+            } catch (e) {
+                console.warn("[ArtistService] Failed to fetch missing artist image from Spotify:", e);
+            }
+        }
     } else {
         const dbCheck = await pool.query(artistQueries.checkExists, [spotifyId]);
         if (dbCheck.rows.length > 0) {
             artist = dbCheck.rows[0];
+            if (!artist.image) {
+                try {
+                    const spotifyArtist = await spotifyService.getArtistBySpotifyId(spotifyId as SpotifyId);
+                    if (spotifyArtist.image) {
+                        await pool.query('UPDATE "Artist" SET image = $1 WHERE id = $2', [spotifyArtist.image, artist.id]);
+                        artist.image = spotifyArtist.image;
+                    }
+                } catch (e) {
+                    console.warn("[ArtistService] Failed to fetch missing artist image from Spotify:", e);
+                }
+            }
         } else {
             // Fetch from Spotify and upsert into DB
             const spotifyArtist = await spotifyService.getArtistBySpotifyId(spotifyId as SpotifyId);
@@ -76,7 +98,26 @@ export const getArtistById = async (
     const topTracks = await getOrSetCache<ArtistTopTrack[]>(
         cacheKey,
         TOP_TRACKS_TTL_SECONDS,
-        async () => spotifyService.getArtistTopTracks(artist.spotifyId as SpotifyId),
+        async () => {
+            try {
+                return await spotifyService.getArtistTopTracks(artist.spotifyId as SpotifyId);
+            } catch (err: any) {
+                if (err.message === "FORBIDDEN_TOP_TRACKS") {
+                    console.warn(`[ArtistService] top-tracks forbidden for ${artist.spotifyId}, falling back to search API`);
+                    // Fallback to searching tracks by artist name
+                    const searchRes = await spotifyService.searchTracks(`artist:${artist.name}`, 1, 10);
+                    return searchRes.items.map((t: any) => ({
+                        spotifyId: t.spotifyId,
+                        title: t.title,
+                        duration: t.duration,
+                        image: t.image,
+                        artists: t.artists || [],
+                        album: t.album,
+                    }));
+                }
+                throw err;
+            }
+        }
     );
 
     // 4. Get in-app follower count
