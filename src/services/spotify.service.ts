@@ -284,4 +284,59 @@ export const spotifyService = {
             })),
         };
     },
+
+    /**
+     * Fetches a single artist profile from Spotify API.
+     */
+    getArtistBySpotifyId: async (spotifyId: SpotifyId) => {
+        const token = await getAccessToken();
+
+        const res = await fetch(`https://api.spotify.com/v1/artists/${spotifyId}`, {
+            headers: { Authorization: `Bearer ${token}` },
+        });
+
+        if (!res.ok) throw new Error(`Spotify getArtistBySpotifyId failed: ${res.status}`);
+
+        const data = await res.json();
+
+        return {
+            spotifyId: data.id as SpotifyId,
+            name: data.name as string,
+            image: getAlbumCover(data.images),
+            genres: (data.genres ?? []) as string[],
+            followers: data.followers?.total ?? 0,
+        };
+    },
+
+    /**
+     * Fetches the top tracks for an artist from Spotify API (market=TR).
+     */
+    getArtistTopTracks: async (spotifyId: SpotifyId) => {
+        const token = await getAccessToken();
+
+        const res = await fetch(`https://api.spotify.com/v1/artists/${spotifyId}/top-tracks?market=TR`, {
+            headers: { Authorization: `Bearer ${token}` },
+        });
+
+        if (!res.ok) throw new Error(`Spotify getArtistTopTracks failed: ${res.status}`);
+
+        const data = await res.json();
+        const tracks: any[] = data.tracks ?? [];
+
+        return tracks.map((track: any) => ({
+            spotifyId: track.id as SpotifyId,
+            title: track.name,
+            duration: track.duration_ms,
+            image: getAlbumCover(track.album?.images),
+            artists: track.artists?.map((a: any) => ({
+                spotifyId: a.id,
+                name: a.name,
+            })) ?? [],
+            album: track.album ? {
+                spotifyId: track.album.id,
+                title: track.album.name,
+                image: getAlbumCover(track.album.images),
+            } : undefined,
+        }));
+    },
 };
