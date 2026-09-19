@@ -78,6 +78,8 @@ export const MESSAGES = {
         INCORRECT_PASSWORD: "Mevcut şifreniz hatalı.",
         MAX_FAVORITES_FILM_REACHED: "En fazla 3 favori film ekleyebilirsiniz.",
         MAX_FAVORITES_TRACK_REACHED: "En fazla 3 favori şarkı ekleyebilirsiniz.",
+        ALREADY_FOLLOWING_ARTIST: "Bu sanatçıyı zaten takip ediyorsunuz.",
+        NOT_FOLLOWING_ARTIST: "Bu sanatçıyı takip etmiyorsunuz.",
     },
 
     SUCCESS: {
@@ -98,6 +100,8 @@ export const MESSAGES = {
         USER_FOLLOWED: "Kullanıcı takip edildi.",
         FOLLOW_REQUEST_SENT: "Takip isteği gönderildi.",
         USER_UNFOLLOWED: "Kullanıcı takipten çıkarıldı.",
+        ARTIST_FOLLOWED: "Sanatçı takip edildi.",
+        ARTIST_UNFOLLOWED: "Sanatçı takipten çıkarıldı.",
 
         RETRIEVED_SUCCESSFULLY: "Veriler başarıyla getirildi.",
         CREATED_SUCCESSFULLY: "Başarıyla oluşturuldu.",

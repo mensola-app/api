@@ -78,6 +78,8 @@ export const MESSAGES = {
         INCORRECT_PASSWORD: "Your current password is incorrect.",
         MAX_FAVORITES_FILM_REACHED: "You can add up to 3 favorite movies.",
         MAX_FAVORITES_TRACK_REACHED: "You can add up to 3 favorite tracks.",
+        ALREADY_FOLLOWING_ARTIST: "You are already following this artist.",
+        NOT_FOLLOWING_ARTIST: "You are not following this artist.",
     },
 
     SUCCESS: {
@@ -98,6 +100,8 @@ export const MESSAGES = {
         USER_FOLLOWED: "User followed.",
         FOLLOW_REQUEST_SENT: "Follow request sent.",
         USER_UNFOLLOWED: "User unfollowed.",
+        ARTIST_FOLLOWED: "Artist followed.",
+        ARTIST_UNFOLLOWED: "Artist unfollowed.",
 
         RETRIEVED_SUCCESSFULLY: "Data retrieved successfully.",
         CREATED_SUCCESSFULLY: "Created successfully.",
