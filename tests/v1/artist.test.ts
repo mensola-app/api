@@ -37,6 +37,43 @@ jest.mock("@/services/spotify.service", () => {
                     album: { spotifyId: "album1", title: "Great Album", image: "https://i.scdn.co/image/album1" },
                 },
             ]),
+            getArtistAlbums: jest.fn().mockResolvedValue({
+                items: [
+                    {
+                        id: "album1",
+                        spotifyId: "album1",
+                        title: "Great Album",
+                        name: "Great Album",
+                        image: "https://i.scdn.co/image/album1",
+                        images: [{ url: "https://i.scdn.co/image/album1", height: 300, width: 300 }],
+                        releaseDate: "2023-01-01",
+                        releaseYear: 2023,
+                        totalTracks: 10,
+                        type: "album",
+                        album_type: "album",
+                        artists: [{ id: "4Z8W4fKeB5YxbusRsdQVPb", spotifyId: "4Z8W4fKeB5YxbusRsdQVPb", name: "Test Artist" }],
+                    },
+                ],
+                total: 1,
+                limit: 5,
+                offset: 0,
+            }),
+            getAllArtistAlbums: jest.fn().mockResolvedValue([
+                {
+                    id: "album1",
+                    spotifyId: "album1",
+                    title: "Great Album",
+                    name: "Great Album",
+                    image: "https://i.scdn.co/image/album1",
+                    images: [{ url: "https://i.scdn.co/image/album1", height: 300, width: 300 }],
+                    releaseDate: "2023-01-01",
+                    releaseYear: 2023,
+                    totalTracks: 10,
+                    type: "album",
+                    album_type: "album",
+                    artists: [{ id: "4Z8W4fKeB5YxbusRsdQVPb", spotifyId: "4Z8W4fKeB5YxbusRsdQVPb", name: "Test Artist" }],
+                },
+            ]),
         },
     };
 });
@@ -293,6 +330,32 @@ describe("Artist API", () => {
 
             expect(response.status).toBe(302);
             expect(response.headers.location).toContain(`/artists/${testArtistSpotifyId}`);
+        });
+    });
+
+    // ──────────────────────────────────────────────
+    // GET /v1/artists/:id/discography
+    // ──────────────────────────────────────────────
+    describe("GET /v1/artists/:id/discography", () => {
+        it("should return paginated discography albums", async () => {
+            const response = await request(app)
+                .get(`/v1/artists/${testArtistSpotifyId}/discography?page=1&limit=10`);
+
+            expect(response.status).toBe(200);
+            expect(response.body.success).toBe(true);
+            expect(response.body.data).toHaveProperty("items");
+            expect(Array.isArray(response.body.data.items)).toBe(true);
+            expect(response.body.data.page).toBe(1);
+            expect(response.body.data.limit).toBe(10);
+        });
+
+        it("should also be accessible via /v1/artists/:id/albums", async () => {
+            const response = await request(app)
+                .get(`/v1/artists/${testArtistSpotifyId}/albums?page=1&limit=5`);
+
+            expect(response.status).toBe(200);
+            expect(response.body.success).toBe(true);
+            expect(response.body.data).toHaveProperty("items");
         });
     });
 });

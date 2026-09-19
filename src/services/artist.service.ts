@@ -1,16 +1,26 @@
 import pool from "@/config/db";
 import { artistQueries } from "@/queries/artist.queries";
 import { spotifyService } from "@/services/spotify.service";
-import { ArtistDetailResponse, ArtistTopTrack, ToggleArtistFollowResult } from "@/types/artist.types";
+import {
+    ArtistAlbumItem,
+    ArtistDetailResponse,
+    ArtistDiscographyResponseData,
+    ArtistTopTrack,
+    ToggleArtistFollowResult,
+} from "@/types/artist.types";
 import { SpotifyId } from "@/types/common.types";
 import { ApiError } from "@/utils/error";
-import { getOrSetCache } from "@/utils/cache";
+import { getCache, getOrSetCache, setCache } from "@/utils/cache";
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const TOP_TRACKS_CACHE_PREFIX = "artist:";
 const TOP_TRACKS_CACHE_SUFFIX = ":top-tracks";
 const TOP_TRACKS_TTL_SECONDS = 86400; // 24 hours
+const ALBUMS_PREVIEW_TTL_SECONDS = 3 * 86400; // 3 days (259200s)
+const DISCOGRAPHY_FULL_TTL_SECONDS = 3 * 86400; // 3 days (259200s)
+
+const backgroundFetchingArtists = new Set<string>();
 
 /**
  * Resolves the Spotify ID from a param that could be either a DB UUID or a Spotify ID.
@@ -142,6 +152,22 @@ export const getArtistById = async (
         },
     );
 
+    // 7. Get albums preview (limit 5) — Redis-cached with 3 days TTL
+    const albumsPreviewKey = `artist:${artist.spotifyId}:albums:preview`;
+    let albums: ArtistAlbumItem[] = [];
+    try {
+        albums = await getOrSetCache<ArtistAlbumItem[]>(
+            albumsPreviewKey,
+            ALBUMS_PREVIEW_TTL_SECONDS,
+            async () => {
+                const res = await spotifyService.getArtistAlbums(artist.spotifyId, 5, 0);
+                return res.items;
+            },
+        );
+    } catch (err: any) {
+        console.warn(`[ArtistService] Failed to fetch albums preview for ${artist.spotifyId}:`, err?.message || err);
+    }
+
     return {
         id: artist.id,
         spotifyId: artist.spotifyId,
@@ -152,6 +178,7 @@ export const getArtistById = async (
         followerCount,
         isFollowing,
         topTracks,
+        albums: albums || [],
     };
 };
 
@@ -200,4 +227,77 @@ export const isFollowingArtist = async (
 ): Promise<boolean> => {
     const result = await pool.query(artistQueries.follow.check, [userId, artistId]);
     return result.rows.length > 0;
+};
+
+/**
+ * Retrieves the full discography of an artist with pagination.
+ * If cached in Redis (artist:{id}:discography:full), slices and returns immediately.
+ * If not cached, fetches the requested page from Spotify immediately to return to the caller,
+ * and asynchronously fetches all remaining pages in the background to populate the 3-day Redis cache.
+ */
+export const getArtistDiscography = async (
+    id: string,
+    page: number = 1,
+    limit: number = 10,
+): Promise<ArtistDiscographyResponseData> => {
+    const { spotifyId } = await resolveArtistIdentifier(id);
+    const fullCacheKey = `artist:${spotifyId}:discography:full`;
+
+    // 1. Check if full discography is cached in Redis
+    const cachedFull = await getCache<ArtistAlbumItem[]>(fullCacheKey);
+
+    if (cachedFull && Array.isArray(cachedFull)) {
+        const offset = (page - 1) * limit;
+        const items = cachedFull.slice(offset, offset + limit);
+        const totalResults = cachedFull.length;
+        const hasMore = offset + items.length < totalResults;
+        const totalPages = Math.ceil(totalResults / limit) || 1;
+
+        return {
+            items,
+            page,
+            limit,
+            hasMore,
+            totalResults,
+            totalPages,
+        };
+    }
+
+    // 2. Cache miss: Fetch requested page from Spotify immediately
+    const offset = (page - 1) * limit;
+    const spotifyRes = await spotifyService.getArtistAlbums(spotifyId, limit, offset);
+    const items = spotifyRes.items;
+    const totalResults = spotifyRes.total;
+    const hasMore = offset + items.length < totalResults;
+    const totalPages = Math.ceil(totalResults / limit) || 1;
+
+    // 3. Populate full cache in background (or immediately if total <= limit on page 1)
+    if (totalResults <= items.length && page === 1) {
+        setCache(fullCacheKey, items, DISCOGRAPHY_FULL_TTL_SECONDS).catch((err) =>
+            console.error("[ArtistService] Failed to set full discography cache:", err)
+        );
+    } else if (!backgroundFetchingArtists.has(spotifyId)) {
+        backgroundFetchingArtists.add(spotifyId);
+        (async () => {
+            try {
+                const allAlbums = await spotifyService.getAllArtistAlbums(spotifyId);
+                if (allAlbums && allAlbums.length > 0) {
+                    await setCache(fullCacheKey, allAlbums, DISCOGRAPHY_FULL_TTL_SECONDS);
+                }
+            } catch (bgErr) {
+                console.warn(`[ArtistService] Background discography fetch failed for ${spotifyId}:`, bgErr);
+            } finally {
+                backgroundFetchingArtists.delete(spotifyId);
+            }
+        })();
+    }
+
+    return {
+        items,
+        page,
+        limit,
+        hasMore,
+        totalResults,
+        totalPages,
+    };
 };

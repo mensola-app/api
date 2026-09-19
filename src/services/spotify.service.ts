@@ -1,6 +1,7 @@
 import { SpotifyId } from "@/types/common.types";
 import { IAlbum, IArtist, ITrack } from "@/types/music.types";
 import { GetNewAlbumsResult, ISpotifyArtist, ISpotifyTrack, SearchTrackResult } from "@/types/spotify.types";
+import { ArtistAlbumItem } from "@/types/artist.types";
 
 import { getCache, setCache } from "@/utils/cache";
 
@@ -67,6 +68,33 @@ const getAlbumCover = (images?: Array<{ url: string; height: number; width: numb
 
     const mediumImage = images[1] || images[0];
     return mediumImage.url;
+};
+
+const mapSpotifyAlbumToArtistAlbumItem = (item: any): ArtistAlbumItem => {
+    const images = item.images || [];
+    const cover = getAlbumCover(images) || images[0]?.url;
+    const releaseDate = item.release_date || "";
+    const releaseYear = releaseDate ? parseInt(releaseDate.substring(0, 4), 10) || undefined : undefined;
+
+    return {
+        id: item.id,
+        spotifyId: item.id,
+        title: item.name,
+        name: item.name,
+        image: cover,
+        images: images,
+        releaseDate: releaseDate,
+        releaseYear: releaseYear,
+        totalTracks: item.total_tracks ?? 0,
+        type: item.type || "album",
+        album_type: item.album_type || "album",
+        album_group: item.album_group,
+        artists: (item.artists || []).map((a: any) => ({
+            id: a.id,
+            spotifyId: a.id,
+            name: a.name,
+        })),
+    };
 };
 
 export const spotifyService = {
@@ -345,5 +373,82 @@ export const spotifyService = {
                 image: getAlbumCover(track.album.images),
             } : undefined,
         }));
+    },
+
+    /**
+     * Fetches albums for an artist with pagination, filtered by market=US and album/single groups.
+     * Note: Spotify API restricts limit to max 10 for this endpoint.
+     */
+    getArtistAlbums: async (
+        spotifyId: SpotifyId | string,
+        limit: number = 5,
+        offset: number = 0,
+    ): Promise<{ items: ArtistAlbumItem[]; total: number; limit: number; offset: number }> => {
+        const token = await getAccessToken();
+        const safeLimit = Math.min(Math.max(limit, 1), 10);
+
+        const url = `https://api.spotify.com/v1/artists/${spotifyId}/albums?market=US&include_groups=album,single&limit=${safeLimit}&offset=${offset}`;
+        const res = await fetch(url, {
+            headers: { Authorization: `Bearer ${token}` },
+        });
+
+        if (!res.ok) {
+            const errBody = await res.text();
+            throw new Error(`Spotify getArtistAlbums failed: ${res.status} - ${errBody}`);
+        }
+
+        const data = await res.json();
+        const items = (data.items || []).map(mapSpotifyAlbumToArtistAlbumItem);
+
+        return {
+            items,
+            total: data.total ?? items.length,
+            limit: data.limit ?? safeLimit,
+            offset: data.offset ?? offset,
+        };
+    },
+
+    /**
+     * Fetches all albums/singles for an artist across all pages for full discography caching.
+     * Note: Spotify API restricts limit to max 10 for this endpoint.
+     */
+    getAllArtistAlbums: async (
+        spotifyId: SpotifyId | string,
+    ): Promise<ArtistAlbumItem[]> => {
+        const token = await getAccessToken();
+        let offset = 0;
+        const limit = 10; // Spotify API restricts to max 10 for this endpoint
+        let hasMore = true;
+        const allItems: ArtistAlbumItem[] = [];
+        const seenIds = new Set<string>();
+
+        while (hasMore) {
+            const url = `https://api.spotify.com/v1/artists/${spotifyId}/albums?market=US&include_groups=album,single&limit=${limit}&offset=${offset}`;
+            const res = await fetch(url, {
+                headers: { Authorization: `Bearer ${token}` },
+            });
+
+            if (!res.ok) {
+                const errBody = await res.text();
+                console.warn(`[SpotifyService] getAllArtistAlbums failed at offset ${offset}: ${res.status} - ${errBody}`);
+                break;
+            }
+
+            const data = await res.json();
+            const items = data.items || [];
+            for (const item of items) {
+                if (!seenIds.has(item.id)) {
+                    seenIds.add(item.id);
+                    allItems.push(mapSpotifyAlbumToArtistAlbumItem(item));
+                }
+            }
+
+            offset += items.length;
+            if (!data.next || items.length === 0 || offset >= (data.total ?? 0)) {
+                hasMore = false;
+            }
+        }
+
+        return allItems;
     },
 };

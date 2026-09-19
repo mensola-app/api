@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from "express";
-import { followArtist, unfollowArtist, getArtistById } from "@/services/artist.service";
+import { followArtist, unfollowArtist, getArtistById, getArtistDiscography } from "@/services/artist.service";
 import { sendResponse } from "@/utils/response";
 import { TypedRequest } from "@/types/express.types";
 import { MESSAGES } from "@/constants/messages";
@@ -72,3 +72,28 @@ export const unfollowArtistHandler = async (
         next(error);
     }
 };
+
+/**
+ * Retrieves paginated discography (albums and singles) for an artist.
+ *
+ * @route   GET /v1/artists/:id/discography
+ * @access  Public / Optional Auth
+ */
+export const getArtistDiscographyHandler = async (
+    req: TypedRequest<{ id: string }, unknown, { page?: string; limit?: string }>,
+    res: Response,
+    next: NextFunction,
+) => {
+    try {
+        const id = req.params.id;
+        const page = req.query.page ? Number(req.query.page) : 1;
+        const limit = req.query.limit ? Number(req.query.limit) : 10;
+
+        const discography = await getArtistDiscography(id, page, limit);
+
+        return sendResponse(res, 200, discography);
+    } catch (error) {
+        next(error);
+    }
+};
+
