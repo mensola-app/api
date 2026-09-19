@@ -4,10 +4,25 @@ export const artistQueries = {
         FROM "Artist" a
         WHERE a."spotifyId" = $1`,
 
+    // Find artist by internal UUID
+    findById: `
+        SELECT id, "spotifyId", name, image, "createdAt"
+        FROM "Artist"
+        WHERE id = $1
+        LIMIT 1`,
+
     insertArtist: `
         INSERT INTO "Artist" ("spotifyId", name, image, "createdAt")
         VALUES ($1, $2, $3, NOW())
         RETURNING id`,
+
+    // Upsert artist — insert or update name/image on conflict
+    upsertArtist: `
+        INSERT INTO "Artist" ("spotifyId", name, image, "createdAt")
+        VALUES ($1, $2, $3, NOW())
+        ON CONFLICT ("spotifyId")
+        DO UPDATE SET name = EXCLUDED.name, image = EXCLUDED.image
+        RETURNING id, "spotifyId", name, image, "createdAt"`,
 
     follow: {
         // Idempotent insert — returns the row whether newly inserted or already existing
