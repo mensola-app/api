@@ -6,6 +6,7 @@ import { sendPasswordResetEmail } from "@/utils/email";
 import { hashPassword, comparePassword } from "@/utils/hash";
 import { generateAccessToken, generateRefreshToken, verifyRefreshToken } from "@/utils/jwt";
 import { verifyGoogleToken } from "@/utils/google";
+import { getCache, setCache, deleteCache } from "@/utils/cache";
 
 import { authQueries } from "@/queries/auth.queries";
 import { userQueries } from "@/queries/user.queries";
@@ -146,8 +147,13 @@ export const userLogout = async (dto: LogoutDto, userId?: string): Promise<boole
     return true;
 };
 
+const RESET_OTP_PREFIX = "auth:otp:";
+const RESET_TICKET_PREFIX = "auth:ticket:";
+const RESET_TTL_SECONDS = 15 * 60; // 15 minutes
+
 /**
  * Generates a 6-digit OTP code for password reset and sends it via email.
+ * Stores the OTP and user id in Redis with a 15-minute expiration.
  */
 export const sendResetEmail = async (dto: SendResetEmailDto): Promise<boolean> => {
     const result = await pool.query<Pick<IUser, "id">>(authQueries.user.findIdByEmail, [dto.email]);
@@ -159,9 +165,9 @@ export const sendResetEmail = async (dto: SendResetEmailDto): Promise<boolean> =
 
     // Generate 6-digit numeric OTP code (cryptographically secure)
     const otpCode = crypto.randomInt(100000, 1000000).toString();
-    const otpExpires = new Date(Date.now() + 15 * 60 * 1000);
 
-    await pool.query(authQueries.token.setByEmail, [otpCode, otpExpires, dto.email]);
+    // Store in Redis with 15-minute TTL
+    await setCache(`${RESET_OTP_PREFIX}${dto.email}`, { code: otpCode, userId: user.id }, RESET_TTL_SECONDS);
 
     await sendPasswordResetEmail(dto.email, otpCode);
 
@@ -169,45 +175,49 @@ export const sendResetEmail = async (dto: SendResetEmailDto): Promise<boolean> =
 };
 
 /**
- * Verifies OTP code and provides a single-use secure reset ticket for password modification.
+ * Verifies OTP code from Redis and provides a single-use secure reset ticket for password modification.
  */
 export const verifyCode = async (dto: VerifyCodeDto): Promise<VerifyCodeResponse> => {
-    const result = await pool.query<Pick<IUser, "id">>(authQueries.token.verify, [dto.email, dto.code]);
-    const user = result.rows[0];
+    const cacheKey = `${RESET_OTP_PREFIX}${dto.email}`;
+    const cachedData = await getCache<{ code: string; userId: string }>(cacheKey);
 
-    if (!user) {
+    if (!cachedData || cachedData.code !== dto.code) {
         throw new ApiError("INVALID_VERIFICATION_CODE", 401);
     }
 
+    // Invalidate OTP immediately to prevent reuse
+    await deleteCache(cacheKey);
+
     // Generate secure random ticket for resetting password
     const ticket = crypto.randomBytes(32).toString("hex");
-    const ticketExpires = new Date(Date.now() + 15 * 60 * 1000);
 
-    await pool.query(authQueries.token.setById, [ticket, ticketExpires, user.id]);
+    // Store ticket in Redis mapped to userId with 15-minute TTL
+    await setCache(`${RESET_TICKET_PREFIX}${ticket}`, cachedData.userId, RESET_TTL_SECONDS);
 
     return { ticket };
 };
 
 /**
- * Resets user password using valid ticket and revokes all active sessions for security.
+ * Resets user password using valid ticket from Redis and revokes all active sessions for security.
  */
 export const updatePassword = async (dto: UpdatePasswordDto): Promise<boolean> => {
-    const result = await pool.query<Pick<IUser, "id">>(authQueries.user.findByTicket, [dto.ticket]);
-    const user = result.rows[0];
+    const ticketKey = `${RESET_TICKET_PREFIX}${dto.ticket}`;
+    const userId = await getCache<string>(ticketKey);
 
-    if (!user) {
+    if (!userId) {
         throw new ApiError("INVALID_SESSION", 401);
     }
 
     const hashedNewPassword = await hashPassword(dto.newPassword);
 
-    // Update password & invalidate reset token
-    await pool.query(authQueries.user.updatePassword, [hashedNewPassword, user.id]);
+    // Update password in database
+    await pool.query(authQueries.user.updatePassword, [hashedNewPassword, userId]);
 
-    await pool.query(authQueries.token.setNullById, [user.id]);
+    // Invalidate the single-use reset ticket
+    await deleteCache(ticketKey);
 
     // Revoke all active sessions for safety after password change
-    await pool.query(authQueries.session.deleteByUserId, [user.id]);
+    await pool.query(authQueries.session.deleteByUserId, [userId]);
 
     return true;
 };

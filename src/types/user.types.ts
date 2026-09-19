@@ -14,8 +14,6 @@ export interface IUser {
     password?: string;
     bio?: string;
     avatar?: string;
-    resetToken?: string;
-    resetTokenExpires?: Date | string;
     deletedAt?: Date | string | null;
     createdAt?: Date | string;
     updatedAt?: Date | string;
