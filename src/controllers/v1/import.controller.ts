@@ -18,8 +18,8 @@ export const importLetterboxd = async (req: Request, res: Response, next: NextFu
             throw new ApiError("UNAUTHORIZED", 401);
         }
 
-        const { items } = importService.validateAndParseZip(req.file.buffer);
-        const job = await importService.createImportJob(userId, items);
+        const { items, lists } = importService.validateAndParseZip(req.file.buffer);
+        const job = await importService.createImportJob(userId, items, lists);
 
         sendResponse(res, 202, job, "IMPORT_QUEUED");
     } catch (error) {

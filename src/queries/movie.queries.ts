@@ -219,6 +219,7 @@ export const movieQueries = {
                             )
                         ))
                     )
+                ORDER BY mli."addedAt" ASC
                 LIMIT $3 OFFSET $4;`,
 
             /**
@@ -264,8 +265,8 @@ export const movieQueries = {
              * Returns the newly created row.
              */
             addMovie: `
-                INSERT INTO "MovieListItem" ("movieListId", "movieId", "addedBy")
-                SELECT $1, $2, $3
+                INSERT INTO "MovieListItem" ("movieListId", "movieId", "addedBy", "addedAt")
+                SELECT $1, $2, $3, COALESCE($4::TIMESTAMPTZ, NOW())
                 FROM "MovieList" ml
                 WHERE ml.id = $1 
                 AND (

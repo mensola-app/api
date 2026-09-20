@@ -5,12 +5,17 @@ import {
     ImportMovieItem,
     ImportResponseDto,
     ImportJobProgress,
+    ImportCustomList,
+    ImportListItemMovie,
+    ImportJobItemsPayload,
     LetterboxdDiaryRow,
     LetterboxdWatchedRow,
     LetterboxdRatingRow,
     LetterboxdReviewRow,
     LetterboxdLikeRow,
     LetterboxdWatchlistRow,
+    LetterboxdListMetaRow,
+    LetterboxdListItemRow,
 } from "@/types/import.types";
 import { ApiError } from "@/utils/error";
 import { redis } from "@/config/redis";
@@ -84,13 +89,101 @@ const getOrFindMovie = (
     return { key };
 };
 
+/**
+ * Parses a custom list CSV file from the lists/ directory.
+ * Extracts list metadata (title, description, date, url) and movie items with position.
+ */
+export const parseListCsv = (content: string, fallbackTitle: string): ImportCustomList | null => {
+    const lines = content.split(/\r?\n/);
+    if (lines.length === 0) return null;
+
+    let splitIndex = -1;
+    for (let i = 0; i < lines.length; i++) {
+        if (lines[i].trim() === "") {
+            splitIndex = i;
+            break;
+        }
+    }
+
+    let metaLines = splitIndex !== -1 ? lines.slice(0, splitIndex) : lines;
+    const movieLines = splitIndex !== -1 ? lines.slice(splitIndex + 1) : [];
+
+    // Filter out "Letterboxd list export..." header line if present
+    metaLines = metaLines.filter((l) => !l.startsWith("Letterboxd list export") && l.trim().length > 0);
+
+    let title = fallbackTitle;
+    let description: string | null = null;
+    let createdAt: string | null = null;
+    let letterboxdUri: string | null = null;
+
+    if (metaLines.length > 0) {
+        try {
+            const metaRecords = parse(metaLines.join("\n"), {
+                columns: true,
+                skip_empty_lines: true,
+                trim: true,
+                relax_column_count: true,
+            }) as LetterboxdListMetaRow[];
+
+            if (metaRecords.length > 0 && metaRecords[0].Name) {
+                title = metaRecords[0].Name.trim();
+                description = metaRecords[0].Description?.trim() || null;
+                createdAt = metaRecords[0].Date?.trim() || null;
+                letterboxdUri = metaRecords[0].URL?.trim() || null;
+            }
+        } catch {
+            // Use fallback title if header parsing fails
+        }
+    }
+
+    // Parse movie items
+    const movies: ImportListItemMovie[] = [];
+    const movieContent = movieLines.join("\n").trim();
+    if (movieContent.length > 0) {
+        try {
+            const itemRecords = parse(movieContent, {
+                columns: true,
+                skip_empty_lines: true,
+                trim: true,
+                relax_column_count: true,
+            }) as LetterboxdListItemRow[];
+
+            for (const row of itemRecords) {
+                if (!row.Name) continue;
+                const yearNum = row.Year ? parseInt(row.Year, 10) : null;
+                const year = !isNaN(Number(yearNum)) ? yearNum : null;
+                const posNum = row.Position ? parseInt(row.Position, 10) : undefined;
+                movies.push({
+                    name: row.Name.trim(),
+                    year,
+                    position: !isNaN(Number(posNum)) ? posNum : undefined,
+                    description: row.Description?.trim() || null,
+                    url: row.URL?.trim() || undefined,
+                });
+            }
+        } catch (err) {
+            console.error(`[List CSV Items Parse Error] title: ${title}`, err);
+        }
+    }
+
+    return {
+        title: title.slice(0, 255), // Truncate title to 255 chars (DB column VARCHAR(255))
+        description,
+        createdAt,
+        letterboxdUri,
+        isPrivate: false,
+        movies,
+    };
+};
+
 export const importService = {
     /**
      * Validates and parses Letterboxd export ZIP archive in-memory.
-     * Merges diary, reviews, likes, watched, and ratings with de-duplication.
-     * Prioritizes diary.csv Watched Date; avoids duplicate watch dates across CSVs.
+     * Merges diary, reviews, likes, watched, ratings, and custom lists (/lists/*.csv).
      */
-    validateAndParseZip: (buffer: Buffer): { items: ImportMovieItem[]; totalItems: number } => {
+    validateAndParseZip: (
+        buffer: Buffer,
+    ): { items: ImportMovieItem[]; lists: ImportCustomList[]; totalItems: number } => {
         let zip: AdmZip;
         try {
             zip = new AdmZip(buffer);
@@ -114,8 +207,17 @@ export const importService = {
         const likesEntry = findEntry(/(^|\/)likes\/films\.csv$/i);
         const watchlistEntry = findEntry(/(^|\/)watchlist\.csv$/i);
 
-        // ZIP must contain at least watched.csv, ratings.csv, diary.csv, or watchlist.csv
-        if (!watchedEntry && !ratingsEntry && !diaryEntry && !watchlistEntry) {
+        // Find all custom list files under lists/ directory
+        const listEntries = entries.filter(
+            (e) =>
+                !e.isDirectory &&
+                !e.entryName.includes("__MACOSX") &&
+                !e.name.startsWith("._") &&
+                /(^|\/)lists\/[^/]+\.csv$/i.test(e.entryName),
+        );
+
+        // ZIP must contain at least watched, ratings, diary, watchlist, or custom lists
+        if (!watchedEntry && !ratingsEntry && !diaryEntry && !watchlistEntry && listEntries.length === 0) {
             throw new ApiError("INVALID_LETTERBOXD_ZIP", 400);
         }
 
@@ -141,6 +243,21 @@ export const importService = {
         const watchedRows = parseCsv<LetterboxdWatchedRow>(watchedEntry);
         const ratingsRows = parseCsv<LetterboxdRatingRow>(ratingsEntry);
         const watchlistRows = parseCsv<LetterboxdWatchlistRow>(watchlistEntry);
+
+        // Parse custom lists
+        const lists: ImportCustomList[] = [];
+        for (const entry of listEntries) {
+            try {
+                const content = entry.getData().toString("utf-8");
+                const fallbackTitle = entry.name.replace(/\.csv$/i, "").replace(/[-_]/g, " ").trim();
+                const parsedList = parseListCsv(content, fallbackTitle);
+                if (parsedList) {
+                    lists.push(parsedList);
+                }
+            } catch (err) {
+                console.error(`[List Entry Parse Error] ${entry.entryName}`, err);
+            }
+        }
 
         const movieMap = new Map<string, ImportMovieItem>();
         const moviesWithDiary = new Set<string>();
@@ -362,26 +479,32 @@ export const importService = {
         }
 
         const items = Array.from(movieMap.values());
-        return { items, totalItems: items.length };
+        return { items, lists, totalItems: items.length + lists.length };
     },
 
     /**
      * Creates an import job, stores items and metadata in Redis, and enqueues to BullMQ.
      */
-    createImportJob: async (userId: string, items: ImportMovieItem[]): Promise<ImportResponseDto> => {
+    createImportJob: async (
+        userId: string,
+        items: ImportMovieItem[],
+        lists: ImportCustomList[] = [],
+    ): Promise<ImportResponseDto> => {
         const jobId = nanoid();
         const now = new Date().toISOString();
+        const totalItems = items.length + lists.length;
 
         const progress: ImportJobProgress = {
             jobId,
             userId,
             status: "queued",
-            totalItems: items.length,
+            totalItems,
             processedItems: 0,
             successCount: 0,
             failedCount: 0,
             watchedCount: 0,
             watchlistCount: 0,
+            listsCount: 0,
             createdAt: now,
             updatedAt: now,
         };
@@ -389,13 +512,14 @@ export const importService = {
         // 1. Save progress state in Redis
         await redis.set(`import:job:${jobId}`, JSON.stringify(progress), "EX", JOB_PROGRESS_TTL);
 
-        // 2. Save items list in Redis separately (avoiding bloated BullMQ job payload)
-        await redis.set(`import:items:${jobId}`, JSON.stringify(items), "EX", JOB_ITEMS_TTL);
+        // 2. Save items & lists payload in Redis separately (avoiding bloated BullMQ job payload)
+        const payload: ImportJobItemsPayload = { items, lists };
+        await redis.set(`import:items:${jobId}`, JSON.stringify(payload), "EX", JOB_ITEMS_TTL);
 
         // 3. Enqueue lightweight BullMQ job
         await importQueue.add(
             "import-letterboxd",
-            { jobId, userId, totalItems: items.length },
+            { jobId, userId, totalItems },
             {
                 jobId,
                 removeOnComplete: { count: 100 },
@@ -406,7 +530,7 @@ export const importService = {
         return {
             jobId,
             status: "queued",
-            totalItems: items.length,
+            totalItems,
         };
     },
 

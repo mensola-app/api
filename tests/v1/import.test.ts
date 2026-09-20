@@ -399,5 +399,72 @@ describe("Letterboxd Import Pipeline", () => {
             expect(res.body.data.totalItems).toBe(1);
             expect(res.body.data.status).toBe("queued");
         });
+
+        it("should return 202 for zip containing only custom lists under lists/ directory", async () => {
+            const zip = new AdmZip();
+            const listCsv = [
+                "Letterboxd list export v7",
+                "Date,Name,Tags,URL,Description",
+                "2026-07-16,watch again,,https://boxd.it/VIEfM,My favorite rewatches",
+                "",
+                "Position,Name,Year,URL,Description",
+                "1,Sherlock Holmes,2009,https://boxd.it/1W2A,",
+                "2,Sherlock Holmes: A Game of Shadows,2011,https://boxd.it/k3S,",
+            ].join("\n");
+            zip.addFile("lists/watch-again.csv", Buffer.from(listCsv));
+
+            const res = await request(app)
+                .post("/v1/imports/letterboxd")
+                .set("Authorization", `Bearer ${testToken}`)
+                .attach("file", zip.toBuffer(), "export.zip");
+
+            expect(res.status).toBe(202);
+            expect(res.body.success).toBe(true);
+            expect(res.body.data.totalItems).toBe(1); // 1 list item
+            expect(res.body.data.status).toBe("queued");
+        });
+    });
+
+    describe("Custom Lists Parsing", () => {
+        it("should parse custom list with metadata and movie items preserving positions", () => {
+            const zip = new AdmZip();
+            const listCsv = [
+                "Letterboxd list export v7",
+                "Date,Name,Tags,URL,Description",
+                "2026-07-16,watch again,,https://boxd.it/VIEfM,Re-watching detective films",
+                "",
+                "Position,Name,Year,URL,Description",
+                "1,Sherlock Holmes,2009,https://boxd.it/1W2A,",
+                "2,Sherlock Holmes: A Game of Shadows,2011,https://boxd.it/k3S,",
+                "3,Sherlock: The Abominable Bride,2016,https://boxd.it/dbTQ,",
+            ].join("\n");
+            zip.addFile("lists/watch-again.csv", Buffer.from(listCsv));
+
+            const buffer = zip.toBuffer();
+            const { lists, totalItems } = importService.validateAndParseZip(buffer);
+
+            expect(totalItems).toBe(1);
+            expect(lists.length).toBe(1);
+
+            const list = lists[0];
+            expect(list.title).toBe("watch again");
+            expect(list.description).toBe("Re-watching detective films");
+            expect(list.isPrivate).toBe(false); // always public
+            expect(list.createdAt).toBe("2026-07-16");
+            expect(list.letterboxdUri).toBe("https://boxd.it/VIEfM");
+
+            expect(list.movies.length).toBe(3);
+            expect(list.movies[0].name).toBe("Sherlock Holmes");
+            expect(list.movies[0].year).toBe(2009);
+            expect(list.movies[0].position).toBe(1);
+
+            expect(list.movies[1].name).toBe("Sherlock Holmes: A Game of Shadows");
+            expect(list.movies[1].year).toBe(2011);
+            expect(list.movies[1].position).toBe(2);
+
+            expect(list.movies[2].name).toBe("Sherlock: The Abominable Bride");
+            expect(list.movies[2].year).toBe(2016);
+            expect(list.movies[2].position).toBe(3);
+        });
     });
 });

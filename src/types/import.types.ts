@@ -50,6 +50,39 @@ export interface LetterboxdWatchlistRow {
     "Letterboxd URI"?: string;
 }
 
+export interface LetterboxdListMetaRow {
+    Date?: string;
+    Name?: string;
+    Tags?: string;
+    URL?: string;
+    Description?: string;
+}
+
+export interface LetterboxdListItemRow {
+    Position?: string;
+    Name: string;
+    Year?: string;
+    URL?: string;
+    Description?: string;
+}
+
+export interface ImportListItemMovie {
+    name: string;
+    year: number | null;
+    position?: number;
+    description?: string | null;
+    url?: string;
+}
+
+export interface ImportCustomList {
+    title: string;
+    description: string | null;
+    createdAt?: string | null;
+    letterboxdUri?: string | null;
+    isPrivate: boolean; // Always false (public) as requested
+    movies: ImportListItemMovie[];
+}
+
 export interface ImportMovieItem {
     name: string;
     year: number | null;
@@ -62,6 +95,11 @@ export interface ImportMovieItem {
     isWatched: boolean;
     inWatchlist?: boolean;
     watchlistDate?: string | null;
+}
+
+export interface ImportJobItemsPayload {
+    items: ImportMovieItem[];
+    lists: ImportCustomList[];
 }
 
 export type ImportJobStatus = "queued" | "processing" | "completed" | "failed";
@@ -88,6 +126,7 @@ export interface ImportJobProgress {
     failedCount: number;
     watchedCount?: number;
     watchlistCount?: number;
+    listsCount?: number;
     errors?: ImportFailedItem[];
     createdAt: string;
     updatedAt: string;
@@ -99,3 +138,4 @@ export interface ImportResponseDto {
     status: ImportJobStatus;
     totalItems: number;
 }
+

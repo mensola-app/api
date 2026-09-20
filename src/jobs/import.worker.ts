@@ -2,7 +2,7 @@ import { Worker, Job } from "bullmq";
 import pool from "@/config/db";
 import { redis } from "@/config/redis";
 import { bullmqRedisConnection } from "@/jobs/import.queue";
-import { ImportJobPayload, ImportJobProgress, ImportMovieItem, ImportFailedItem } from "@/types/import.types";
+import { ImportJobPayload, ImportJobProgress, ImportMovieItem, ImportFailedItem, ImportCustomList } from "@/types/import.types";
 import { tmdbService } from "@/services/tmdb.service";
 import { movieQueries } from "@/queries/movie.queries";
 import { invalidateUserProfile } from "@/utils/cache";
@@ -98,9 +98,16 @@ export const initImportWorker = (): Worker<ImportJobPayload> => {
                 return;
             }
 
-            let items: ImportMovieItem[];
+            let items: ImportMovieItem[] = [];
+            let lists: ImportCustomList[] = [];
             try {
-                items = JSON.parse(rawItems);
+                const parsed = JSON.parse(rawItems);
+                if (Array.isArray(parsed)) {
+                    items = parsed;
+                } else {
+                    items = parsed.items || [];
+                    lists = parsed.lists || [];
+                }
             } catch (err) {
                 console.error(`[Import Worker] Failed to parse items for job ${jobId}`, err);
                 await updateJobProgress(jobId, { status: "failed" });
@@ -129,8 +136,10 @@ export const initImportWorker = (): Worker<ImportJobPayload> => {
             let failedCount = 0;
             let watchedCount = 0;
             let watchlistCount = 0;
+            let listsCount = 0;
             const errors: ImportFailedItem[] = [];
 
+            // 1. Process movie items
             for (const item of items) {
                 try {
                     const result = await processMovieItem(userId, item);
@@ -148,7 +157,7 @@ export const initImportWorker = (): Worker<ImportJobPayload> => {
                 } finally {
                     processedCount++;
 
-                    // Update progress periodically (every 10 items or on last item)
+                    // Update progress periodically (every 10 items or on last movie)
                     if (processedCount % 10 === 0 || processedCount === items.length) {
                         await updateJobProgress(jobId, {
                             processedItems: processedCount,
@@ -156,9 +165,37 @@ export const initImportWorker = (): Worker<ImportJobPayload> => {
                             failedCount,
                             watchedCount,
                             watchlistCount,
+                            listsCount,
                             errors: errors.slice(-50), // Keep up to 50 errors
                         });
                     }
+                }
+            }
+
+            // 2. Process custom lists (/lists/*.csv)
+            for (const customList of lists) {
+                try {
+                    await processCustomList(userId, customList, errors);
+                    listsCount++;
+                    successCount++;
+                } catch (err: any) {
+                    failedCount++;
+                    console.error(`[Import Worker] Failed to process list "${customList.title}":`, err.message);
+                    errors.push({
+                        movie: customList.title,
+                        error: err.message || "Failed to create list",
+                    });
+                } finally {
+                    processedCount++;
+                    await updateJobProgress(jobId, {
+                        processedItems: processedCount,
+                        successCount,
+                        failedCount,
+                        watchedCount,
+                        watchlistCount,
+                        listsCount,
+                        errors: errors.slice(-50),
+                    });
                 }
             }
 
@@ -171,6 +208,7 @@ export const initImportWorker = (): Worker<ImportJobPayload> => {
                 failedCount,
                 watchedCount,
                 watchlistCount,
+                listsCount,
                 errors: errors.slice(-50),
                 completedAt: new Date().toISOString(),
             });
@@ -180,22 +218,35 @@ export const initImportWorker = (): Worker<ImportJobPayload> => {
 
             // Send push notification to user upon completion
             try {
+                const partsTr: string[] = [];
+                const partsEn: string[] = [];
+
+                if (watchedCount > 0) {
+                    partsTr.push(`${watchedCount} film izleme geçmişinize`);
+                    partsEn.push(`${watchedCount} movies to watch history`);
+                }
+                if (watchlistCount > 0) {
+                    partsTr.push(`${watchlistCount} film izleme listenize`);
+                    partsEn.push(`${watchlistCount} movies to watchlist`);
+                }
+                if (listsCount > 0) {
+                    partsTr.push(`${listsCount} liste profilinize`);
+                    partsEn.push(`${listsCount} lists to your profile`);
+                }
+
                 let trBody = "";
                 let enBody = "";
 
-                if (watchedCount > 0 && watchlistCount > 0) {
-                    trBody = `${watchedCount} film izleme geçmişinize, ${watchlistCount} film izleme listenize eklendi.`;
-                    enBody = `${watchedCount} movies added to watch history, ${watchlistCount} movies added to watchlist.`;
-                } else if (watchlistCount > 0) {
-                    trBody = `${watchlistCount} film izleme listenize eklendi.`;
-                    enBody = `${watchlistCount} movies added to your watchlist.`;
+                if (partsTr.length > 0) {
+                    trBody = `${partsTr.join(", ")} eklendi.`;
+                    enBody = `Added ${partsEn.join(", ")}.`;
                 } else {
-                    trBody = `${watchedCount || successCount} film başarıyla kütüphanenize eklendi.`;
-                    enBody = `${watchedCount || successCount} movies were successfully added to your library.`;
+                    trBody = `${successCount} öğe başarıyla kütüphanenize eklendi.`;
+                    enBody = `${successCount} items were successfully added to your library.`;
                 }
 
                 if (failedCount > 0) {
-                    trBody += ` (${failedCount} film eklenemedi)`;
+                    trBody += ` (${failedCount} öğe eklenemedi)`;
                     enBody += ` (${failedCount} skipped)`;
                 }
 
@@ -217,6 +268,7 @@ export const initImportWorker = (): Worker<ImportJobPayload> => {
                         failedCount,
                         watchedCount,
                         watchlistCount,
+                        listsCount,
                     },
                 });
             } catch (notifyErr) {
@@ -224,7 +276,7 @@ export const initImportWorker = (): Worker<ImportJobPayload> => {
             }
 
             console.log(
-                `[Import Worker] Finished job ${jobId}. Processed: ${processedCount}, Success: ${successCount} (Watched: ${watchedCount}, Watchlist: ${watchlistCount}), Failed: ${failedCount}`,
+                `[Import Worker] Finished job ${jobId}. Processed: ${processedCount}, Success: ${successCount} (Watched: ${watchedCount}, Watchlist: ${watchlistCount}, Lists: ${listsCount}), Failed: ${failedCount}`,
             );
         },
         {
@@ -288,6 +340,82 @@ const updateJobProgress = async (jobId: string, updates: Partial<ImportJobProgre
     }
 };
 
+/**
+ * Resolves a movie's ID using local DB lookup or TMDB search.
+ */
+const resolveMovieId = async (name: string, year: number | null): Promise<string> => {
+    // 1. Local DB lookup
+    if (year) {
+        const exactMatch = await pool.query<{ id: string }>(
+            `SELECT id FROM "Movie"
+             WHERE LOWER(title) = LOWER($1) AND EXTRACT(YEAR FROM "releaseDate") = $2
+             LIMIT 1`,
+            [name, year],
+        );
+
+        if (exactMatch.rows.length > 0) {
+            return exactMatch.rows[0].id;
+        }
+
+        // Fallback: +/- 1 year tolerance
+        const toleranceMatch = await pool.query<{ id: string }>(
+            `SELECT id FROM "Movie"
+             WHERE LOWER(title) = LOWER($1) AND ABS(EXTRACT(YEAR FROM "releaseDate") - $2) <= 1
+             LIMIT 1`,
+            [name, year],
+        );
+        if (toleranceMatch.rows.length > 0) {
+            return toleranceMatch.rows[0].id;
+        }
+    } else {
+        const titleMatch = await pool.query<{ id: string }>(
+            `SELECT id FROM "Movie"
+             WHERE LOWER(title) = LOWER($1)
+             LIMIT 1`,
+            [name],
+        );
+        if (titleMatch.rows.length > 0) {
+            return titleMatch.rows[0].id;
+        }
+    }
+
+    // 2. TMDB Fallback if not found locally
+    await tmdbLimiter.acquire();
+    const tmdbMovieResult = await tmdbService.searchMovieWithTolerance(name, year);
+
+    if (!tmdbMovieResult) {
+        throw new Error(`Movie "${name}" (${year ?? "unknown year"}) not found on TMDB`);
+    }
+
+    // Check if TMDB movie already exists in local DB by tmdbId
+    const existingTmdb = await pool.query<{ id: string }>(
+        `SELECT id FROM "Movie" WHERE "tmdbId" = $1 LIMIT 1`,
+        [tmdbMovieResult.id],
+    );
+
+    if (existingTmdb.rows.length > 0) {
+        return existingTmdb.rows[0].id;
+    }
+
+    // Fetch full movie details including credits
+    await tmdbLimiter.acquire();
+    const tmdbDetails = await tmdbService.getMovieByTmdbId(tmdbMovieResult.id);
+
+    const insertResult = await pool.query<{ id: string }>(movieQueries.movies.insertMovie, [
+        tmdbDetails.tmdbId,
+        tmdbDetails.title,
+        tmdbDetails.poster,
+        tmdbDetails.releaseDate || null,
+        tmdbDetails.rating || null,
+        tmdbDetails.genres || null,
+        tmdbDetails.duration || null,
+        tmdbDetails.overview || null,
+        tmdbDetails.credits ? JSON.stringify(tmdbDetails.credits) : null,
+    ]);
+
+    return insertResult.rows[0].id;
+};
+
 interface ProcessMovieResult {
     addedToWatched: boolean;
     addedToWatchlist: boolean;
@@ -297,84 +425,7 @@ interface ProcessMovieResult {
  * Processes a single movie item: matches local DB or TMDB, creates/upserts Watched, Watchlist, Interaction, and Comment.
  */
 const processMovieItem = async (userId: string, item: ImportMovieItem): Promise<ProcessMovieResult> => {
-    let movieId: string | null = null;
-
-    // 1. Local DB lookup
-    if (item.year) {
-        const exactMatch = await pool.query<{ id: string }>(
-            `SELECT id FROM "Movie"
-             WHERE LOWER(title) = LOWER($1) AND EXTRACT(YEAR FROM "releaseDate") = $2
-             LIMIT 1`,
-            [item.name, item.year],
-        );
-
-        if (exactMatch.rows.length > 0) {
-            movieId = exactMatch.rows[0].id;
-        } else {
-            // Fallback: +/- 1 year tolerance
-            const toleranceMatch = await pool.query<{ id: string }>(
-                `SELECT id FROM "Movie"
-                 WHERE LOWER(title) = LOWER($1) AND ABS(EXTRACT(YEAR FROM "releaseDate") - $2) <= 1
-                 LIMIT 1`,
-                [item.name, item.year],
-            );
-            if (toleranceMatch.rows.length > 0) {
-                movieId = toleranceMatch.rows[0].id;
-            }
-        }
-    } else {
-        const titleMatch = await pool.query<{ id: string }>(
-            `SELECT id FROM "Movie"
-             WHERE LOWER(title) = LOWER($1)
-             LIMIT 1`,
-            [item.name],
-        );
-        if (titleMatch.rows.length > 0) {
-            movieId = titleMatch.rows[0].id;
-        }
-    }
-
-    // 2. TMDB Fallback if not found locally
-    if (!movieId) {
-        await tmdbLimiter.acquire();
-        const tmdbMovieResult = await tmdbService.searchMovieWithTolerance(item.name, item.year);
-
-        if (!tmdbMovieResult) {
-            throw new Error(`Movie "${item.name}" (${item.year ?? "unknown year"}) not found on TMDB`);
-        }
-
-        // Check if TMDB movie already exists in local DB by tmdbId
-        const existingTmdb = await pool.query<{ id: string }>(
-            `SELECT id FROM "Movie" WHERE "tmdbId" = $1 LIMIT 1`,
-            [tmdbMovieResult.id],
-        );
-
-        if (existingTmdb.rows.length > 0) {
-            movieId = existingTmdb.rows[0].id;
-        } else {
-            // Fetch full movie details including credits
-            await tmdbLimiter.acquire();
-            const tmdbDetails = await tmdbService.getMovieByTmdbId(tmdbMovieResult.id);
-
-            const insertResult = await pool.query<{ id: string }>(movieQueries.movies.insertMovie, [
-                tmdbDetails.tmdbId,
-                tmdbDetails.title,
-                tmdbDetails.poster,
-                tmdbDetails.releaseDate || null,
-                tmdbDetails.rating || null,
-                tmdbDetails.genres || null,
-                tmdbDetails.duration || null,
-                tmdbDetails.overview || null,
-                tmdbDetails.credits ? JSON.stringify(tmdbDetails.credits) : null,
-            ]);
-
-            movieId = insertResult.rows[0].id;
-        }
-    }
-
-    if (!movieId) {
-        throw new Error(`Could not resolve movie ID for "${item.name}"`);
-    }
+    const movieId = await resolveMovieId(item.name, item.year);
 
     // 3. WatchedMovie record(s)
     let addedToWatched = false;
@@ -515,4 +566,65 @@ const processMovieItem = async (userId: string, item: ImportMovieItem): Promise<
     }
 
     return { addedToWatched, addedToWatchlist };
+};
+
+/**
+ * Processes a custom list: finds or creates the list in MovieList table,
+ * resolves each movie and inserts into MovieListItem preserving position ordering.
+ */
+const processCustomList = async (
+    userId: string,
+    customList: ImportCustomList,
+    errors: ImportFailedItem[],
+): Promise<void> => {
+    const title = customList.title.trim().slice(0, 255);
+    const description = customList.description ? customList.description.trim() : null;
+    const listDate = customList.createdAt || null;
+
+    // Check if a custom list with the same title already exists for this user
+    const existingList = await pool.query<{ id: string }>(
+        `SELECT id FROM "MovieList" WHERE "creatorId" = $1 AND "title" = $2 AND "listType" = 'custom' LIMIT 1`,
+        [userId, title],
+    );
+
+    let listId: string;
+    if (existingList.rows.length > 0) {
+        listId = existingList.rows[0].id;
+    } else {
+        const newList = await pool.query<{ id: string }>(
+            `INSERT INTO "MovieList" (id, title, description, image, "isPrivate", "listType", "creatorId", "createdAt", "updatedAt")
+             VALUES (gen_random_uuid(), $1, $2, null, false, 'custom', $3, COALESCE($4::TIMESTAMPTZ, NOW()), NOW())
+             RETURNING id`,
+            [title, description, userId, listDate],
+        );
+        listId = newList.rows[0].id;
+    }
+
+    // Base timestamp for preserving list position order
+    const baseTime = listDate ? new Date(listDate).getTime() : Date.now();
+
+    // Process each movie in the list
+    for (let idx = 0; idx < customList.movies.length; idx++) {
+        const m = customList.movies[idx];
+        try {
+            const movieId = await resolveMovieId(m.name, m.year);
+            const position = m.position ?? idx + 1;
+            // Stagger addedAt by position seconds to guarantee deterministic order
+            const itemAddedAt = new Date(baseTime + position * 1000).toISOString();
+
+            await pool.query(movieQueries.lists.items.addMovie, [
+                listId,
+                movieId,
+                userId,
+                itemAddedAt,
+            ]);
+        } catch (err: any) {
+            console.error(`[Import Worker] Failed to add movie "${m.name}" to list "${title}":`, err.message);
+            errors.push({
+                movie: `${title} > ${m.name}`,
+                year: m.year,
+                error: err.message || "Failed to resolve movie for list",
+            });
+        }
+    }
 };

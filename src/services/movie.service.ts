@@ -551,7 +551,7 @@ export const getMovieInteractions = async (dto: { movieId: string; currentUserId
 export const addItemToList = async (dto: MovieListItemDto): Promise<IMovieListItem> => {
     const { listId, movieId, userId } = dto;
 
-    const result = await pool.query<IMovieListItem>(movieQueries.lists.items.addMovie, [listId, movieId, userId]);
+    const result = await pool.query<IMovieListItem>(movieQueries.lists.items.addMovie, [listId, movieId, userId, null]);
     const addedItem = result.rows[0];
 
     if (!addedItem) {
