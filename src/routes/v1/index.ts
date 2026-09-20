@@ -15,6 +15,7 @@ import commentRoutes from "./comment.routes";
 import deviceRoutes from "./device.routes";
 import shortLinkRoutes from "./shortLink.routes";
 import artistRoutes from "./artist.routes";
+import importRoutes from "./import.routes";
 
 import { Router } from "express";
 
@@ -38,5 +39,6 @@ v1Router.use("/comments", commentRoutes);
 v1Router.use("/devices", deviceRoutes);
 v1Router.use("/short-links", shortLinkRoutes);
 v1Router.use("/artists", artistRoutes);
+v1Router.use("/imports", importRoutes);
 
 export default v1Router;
