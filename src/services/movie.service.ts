@@ -304,7 +304,7 @@ export const getMovie = async (dto: GetMovieDto): Promise<GetMovieResponse> => {
  * @returns The newly created MovieListItem record representing the watchlist entry.
  */
 export const addToWatchlist = async (dto: UserMovieActionDto): Promise<IMovieListItem> => {
-    const result = await pool.query<IMovieListItem>(movieQueries.movies.watchlist.add, [dto.userId, dto.movieId]);
+    const result = await pool.query<IMovieListItem>(movieQueries.movies.watchlist.add, [dto.userId, dto.movieId, null]);
     await invalidateUserProfile(dto.userId);
     return result.rows[0];
 };

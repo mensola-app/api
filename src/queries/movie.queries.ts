@@ -520,7 +520,7 @@ export const movieQueries = {
                     SELECT id FROM existing_list UNION ALL SELECT id FROM new_list
                 )
                 INSERT INTO "MovieListItem" ("movieListId", "movieId", "addedBy", "addedAt")
-                SELECT id, $2, $1, NOW() FROM target_list
+                SELECT id, $2, $1, COALESCE($3::TIMESTAMPTZ, NOW()) FROM target_list
                 ON CONFLICT ("movieListId", "movieId") DO NOTHING
                 RETURNING *;`,
 

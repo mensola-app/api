@@ -43,6 +43,13 @@ export interface LetterboxdLikeRow {
     "Letterboxd URI"?: string;
 }
 
+export interface LetterboxdWatchlistRow {
+    Date?: string;
+    Name: string;
+    Year?: string;
+    "Letterboxd URI"?: string;
+}
+
 export interface ImportMovieItem {
     name: string;
     year: number | null;
@@ -53,6 +60,8 @@ export interface ImportMovieItem {
     watchedDates: string[]; // List of distinct watch timestamps/dates
     rewatch?: boolean;
     isWatched: boolean;
+    inWatchlist?: boolean;
+    watchlistDate?: string | null;
 }
 
 export type ImportJobStatus = "queued" | "processing" | "completed" | "failed";
@@ -77,6 +86,8 @@ export interface ImportJobProgress {
     processedItems: number;
     successCount: number;
     failedCount: number;
+    watchedCount?: number;
+    watchlistCount?: number;
     errors?: ImportFailedItem[];
     createdAt: string;
     updatedAt: string;

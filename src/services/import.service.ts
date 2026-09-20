@@ -10,6 +10,7 @@ import {
     LetterboxdRatingRow,
     LetterboxdReviewRow,
     LetterboxdLikeRow,
+    LetterboxdWatchlistRow,
 } from "@/types/import.types";
 import { ApiError } from "@/utils/error";
 import { redis } from "@/config/redis";
@@ -111,9 +112,10 @@ export const importService = {
         const ratingsEntry = findEntry(/(^|\/)ratings\.csv$/i);
         const reviewsEntry = findEntry(/(^|\/)reviews\.csv$/i);
         const likesEntry = findEntry(/(^|\/)likes\/films\.csv$/i);
+        const watchlistEntry = findEntry(/(^|\/)watchlist\.csv$/i);
 
-        // ZIP must contain at least watched.csv, ratings.csv, or diary.csv
-        if (!watchedEntry && !ratingsEntry && !diaryEntry) {
+        // ZIP must contain at least watched.csv, ratings.csv, diary.csv, or watchlist.csv
+        if (!watchedEntry && !ratingsEntry && !diaryEntry && !watchlistEntry) {
             throw new ApiError("INVALID_LETTERBOXD_ZIP", 400);
         }
 
@@ -138,6 +140,7 @@ export const importService = {
         const likesRows = parseCsv<LetterboxdLikeRow>(likesEntry);
         const watchedRows = parseCsv<LetterboxdWatchedRow>(watchedEntry);
         const ratingsRows = parseCsv<LetterboxdRatingRow>(ratingsEntry);
+        const watchlistRows = parseCsv<LetterboxdWatchlistRow>(watchlistEntry);
 
         const movieMap = new Map<string, ImportMovieItem>();
         const moviesWithDiary = new Set<string>();
@@ -324,6 +327,40 @@ export const importService = {
             }
         }
 
+        // 6. watchlist.csv (adds movies to watchlist, sets inWatchlist: true)
+        for (const row of watchlistRows) {
+            if (!row.Name) continue;
+            const yearNum = row.Year ? parseInt(row.Year, 10) : null;
+            const year = !isNaN(Number(yearNum)) ? yearNum : null;
+            const { key, item: existing } = getOrFindMovie(movieMap, row.Name, year);
+
+            const watchlistDate = row.Date?.trim() || null;
+
+            if (existing) {
+                existing.inWatchlist = true;
+                if (watchlistDate && !existing.watchlistDate) {
+                    existing.watchlistDate = watchlistDate;
+                }
+                if (row["Letterboxd URI"] && !existing.letterboxdUri) {
+                    existing.letterboxdUri = row["Letterboxd URI"];
+                }
+            } else {
+                movieMap.set(key, {
+                    name: row.Name.trim(),
+                    year,
+                    letterboxdUri: row["Letterboxd URI"],
+                    rating: null,
+                    review: null,
+                    rewatch: false,
+                    isLiked: false,
+                    watchedDates: [],
+                    isWatched: false,
+                    inWatchlist: true,
+                    watchlistDate,
+                });
+            }
+        }
+
         const items = Array.from(movieMap.values());
         return { items, totalItems: items.length };
     },
@@ -343,6 +380,8 @@ export const importService = {
             processedItems: 0,
             successCount: 0,
             failedCount: 0,
+            watchedCount: 0,
+            watchlistCount: 0,
             createdAt: now,
             updatedAt: now,
         };

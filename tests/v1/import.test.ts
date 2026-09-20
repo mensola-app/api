@@ -59,12 +59,72 @@ describe("Letterboxd Import Pipeline", () => {
     });
 
     describe("validateAndParseZip", () => {
-        it("should throw error if zip has neither watched.csv nor ratings.csv", () => {
+        it("should throw error if zip has none of watched, ratings, diary, or watchlist csv", () => {
             const zip = new AdmZip();
             zip.addFile("dummy.txt", Buffer.from("hello world"));
             const buffer = zip.toBuffer();
 
             expect(() => importService.validateAndParseZip(buffer)).toThrow();
+        });
+
+        it("should successfully parse standalone watchlist.csv", () => {
+            const zip = new AdmZip();
+            const watchlistCsv = [
+                "Date,Name,Year,Letterboxd URI",
+                "2026-05-31,Capital,2012,https://boxd.it/43qS",
+                "2026-06-02,Fracture,2007,https://boxd.it/220K",
+            ].join("\n");
+            zip.addFile("watchlist.csv", Buffer.from(watchlistCsv));
+
+            const buffer = zip.toBuffer();
+            const { items, totalItems } = importService.validateAndParseZip(buffer);
+
+            expect(totalItems).toBe(2);
+            expect(items.length).toBe(2);
+
+            const capital = items.find((i) => i.name === "Capital");
+            expect(capital).toBeDefined();
+            expect(capital?.year).toBe(2012);
+            expect(capital?.inWatchlist).toBe(true);
+            expect(capital?.watchlistDate).toBe("2026-05-31");
+            expect(capital?.isWatched).toBe(false);
+
+            const fracture = items.find((i) => i.name === "Fracture");
+            expect(fracture).toBeDefined();
+            expect(fracture?.year).toBe(2007);
+            expect(fracture?.inWatchlist).toBe(true);
+            expect(fracture?.watchlistDate).toBe("2026-06-02");
+            expect(fracture?.isWatched).toBe(false);
+        });
+
+        it("should correctly handle both watched.csv and watchlist.csv", () => {
+            const zip = new AdmZip();
+            const watchedCsv = [
+                "Date,Name,Year,Letterboxd URI",
+                "2026-01-10,Inception,2010,https://boxd.it/1770",
+            ].join("\n");
+            const watchlistCsv = [
+                "Date,Name,Year,Letterboxd URI",
+                "2026-05-31,Capital,2012,https://boxd.it/43qS",
+                "2026-06-01,Inception,2010,https://boxd.it/1770",
+            ].join("\n");
+            zip.addFile("watched.csv", Buffer.from(watchedCsv));
+            zip.addFile("watchlist.csv", Buffer.from(watchlistCsv));
+
+            const buffer = zip.toBuffer();
+            const { items, totalItems } = importService.validateAndParseZip(buffer);
+
+            expect(totalItems).toBe(2);
+            const inception = items.find((i) => i.name === "Inception");
+            expect(inception).toBeDefined();
+            expect(inception?.isWatched).toBe(true);
+            expect(inception?.inWatchlist).toBe(true);
+            expect(inception?.watchlistDate).toBe("2026-06-01");
+
+            const capital = items.find((i) => i.name === "Capital");
+            expect(capital).toBeDefined();
+            expect(capital?.isWatched).toBe(false);
+            expect(capital?.inWatchlist).toBe(true);
         });
 
         it("should ignore __MACOSX and hidden files", () => {
@@ -319,6 +379,25 @@ describe("Letterboxd Import Pipeline", () => {
             expect(progressRes.body.data.jobId).toBe(jobId);
             expect(progressRes.body.data.status).toBe("queued");
             expect(progressRes.body.data.totalItems).toBe(1);
+        });
+
+        it("should return 202 for zip containing only watchlist.csv", async () => {
+            const zip = new AdmZip();
+            const watchlistCsv = [
+                "Date,Name,Year,Letterboxd URI",
+                "2026-05-31,Capital,2012,https://boxd.it/43qS",
+            ].join("\n");
+            zip.addFile("watchlist.csv", Buffer.from(watchlistCsv));
+
+            const res = await request(app)
+                .post("/v1/imports/letterboxd")
+                .set("Authorization", `Bearer ${testToken}`)
+                .attach("file", zip.toBuffer(), "export.zip");
+
+            expect(res.status).toBe(202);
+            expect(res.body.success).toBe(true);
+            expect(res.body.data.totalItems).toBe(1);
+            expect(res.body.data.status).toBe("queued");
         });
     });
 });

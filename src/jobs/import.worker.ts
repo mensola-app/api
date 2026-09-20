@@ -127,12 +127,16 @@ export const initImportWorker = (): Worker<ImportJobPayload> => {
             let processedCount = 0;
             let successCount = 0;
             let failedCount = 0;
+            let watchedCount = 0;
+            let watchlistCount = 0;
             const errors: ImportFailedItem[] = [];
 
             for (const item of items) {
                 try {
-                    await processMovieItem(userId, item);
+                    const result = await processMovieItem(userId, item);
                     successCount++;
+                    if (result.addedToWatched) watchedCount++;
+                    if (result.addedToWatchlist) watchlistCount++;
                 } catch (err: any) {
                     failedCount++;
                     console.error(`[Import Worker] Failed to process movie "${item.name}" (${item.year}):`, err.message);
@@ -150,6 +154,8 @@ export const initImportWorker = (): Worker<ImportJobPayload> => {
                             processedItems: processedCount,
                             successCount,
                             failedCount,
+                            watchedCount,
+                            watchlistCount,
                             errors: errors.slice(-50), // Keep up to 50 errors
                         });
                     }
@@ -163,6 +169,8 @@ export const initImportWorker = (): Worker<ImportJobPayload> => {
                 processedItems: processedCount,
                 successCount,
                 failedCount,
+                watchedCount,
+                watchlistCount,
                 errors: errors.slice(-50),
                 completedAt: new Date().toISOString(),
             });
@@ -172,21 +180,34 @@ export const initImportWorker = (): Worker<ImportJobPayload> => {
 
             // Send push notification to user upon completion
             try {
+                let trBody = "";
+                let enBody = "";
+
+                if (watchedCount > 0 && watchlistCount > 0) {
+                    trBody = `${watchedCount} film izleme geçmişinize, ${watchlistCount} film izleme listenize eklendi.`;
+                    enBody = `${watchedCount} movies added to watch history, ${watchlistCount} movies added to watchlist.`;
+                } else if (watchlistCount > 0) {
+                    trBody = `${watchlistCount} film izleme listenize eklendi.`;
+                    enBody = `${watchlistCount} movies added to your watchlist.`;
+                } else {
+                    trBody = `${watchedCount || successCount} film başarıyla kütüphanenize eklendi.`;
+                    enBody = `${watchedCount || successCount} movies were successfully added to your library.`;
+                }
+
+                if (failedCount > 0) {
+                    trBody += ` (${failedCount} film eklenemedi)`;
+                    enBody += ` (${failedCount} skipped)`;
+                }
+
                 await sendPushNotification(userId, {
                     localized: {
                         tr: {
                             title: "Letterboxd İçe Aktarma Tamamlandı",
-                            body:
-                                failedCount > 0
-                                    ? `${successCount} film kütüphanenize eklendi, ${failedCount} film eklenemedi.`
-                                    : `${successCount} film başarıyla kütüphanenize eklendi.`,
+                            body: trBody,
                         },
                         en: {
                             title: "Letterboxd Import Completed",
-                            body:
-                                failedCount > 0
-                                    ? `${successCount} movies added, ${failedCount} skipped.`
-                                    : `${successCount} movies were successfully added to your library.`,
+                            body: enBody,
                         },
                     },
                     data: {
@@ -194,6 +215,8 @@ export const initImportWorker = (): Worker<ImportJobPayload> => {
                         jobId,
                         successCount,
                         failedCount,
+                        watchedCount,
+                        watchlistCount,
                     },
                 });
             } catch (notifyErr) {
@@ -201,7 +224,7 @@ export const initImportWorker = (): Worker<ImportJobPayload> => {
             }
 
             console.log(
-                `[Import Worker] Finished job ${jobId}. Processed: ${processedCount}, Success: ${successCount}, Failed: ${failedCount}`,
+                `[Import Worker] Finished job ${jobId}. Processed: ${processedCount}, Success: ${successCount} (Watched: ${watchedCount}, Watchlist: ${watchlistCount}), Failed: ${failedCount}`,
             );
         },
         {
@@ -265,10 +288,15 @@ const updateJobProgress = async (jobId: string, updates: Partial<ImportJobProgre
     }
 };
 
+interface ProcessMovieResult {
+    addedToWatched: boolean;
+    addedToWatchlist: boolean;
+}
+
 /**
- * Processes a single movie item: matches local DB or TMDB, creates/upserts Watched, Interaction, and Comment.
+ * Processes a single movie item: matches local DB or TMDB, creates/upserts Watched, Watchlist, Interaction, and Comment.
  */
-const processMovieItem = async (userId: string, item: ImportMovieItem): Promise<void> => {
+const processMovieItem = async (userId: string, item: ImportMovieItem): Promise<ProcessMovieResult> => {
     let movieId: string | null = null;
 
     // 1. Local DB lookup
@@ -349,6 +377,7 @@ const processMovieItem = async (userId: string, item: ImportMovieItem): Promise<
     }
 
     // 3. WatchedMovie record(s)
+    let addedToWatched = false;
     if (item.isWatched) {
         const datesToInsert = item.watchedDates.length > 0 ? item.watchedDates : [null];
 
@@ -411,9 +440,21 @@ const processMovieItem = async (userId: string, item: ImportMovieItem): Promise<
                 }
             }
         }
+        addedToWatched = true;
     }
 
-    // 4. Interaction (rating, isLiked) & Comment (review)
+    // 4. Watchlist record
+    let addedToWatchlist = false;
+    if (item.inWatchlist) {
+        await pool.query(movieQueries.movies.watchlist.add, [
+            userId,
+            movieId,
+            item.watchlistDate || null,
+        ]);
+        addedToWatchlist = true;
+    }
+
+    // 5. Interaction (rating, isLiked) & Comment (review)
     const hasRating = item.rating !== null && item.rating !== undefined;
     const hasLike = Boolean(item.isLiked);
     const hasReview = Boolean(item.review && item.review.trim().length > 0);
@@ -452,7 +493,7 @@ const processMovieItem = async (userId: string, item: ImportMovieItem): Promise<
             interactionId = insertInteraction.rows[0].id;
         }
 
-        // 5. Review / Comment
+        // 6. Review / Comment
         if (hasReview && item.review) {
             const existingComment = await pool.query(
                 `SELECT id FROM "Comment"
@@ -472,4 +513,6 @@ const processMovieItem = async (userId: string, item: ImportMovieItem): Promise<
             }
         }
     }
+
+    return { addedToWatched, addedToWatchlist };
 };
