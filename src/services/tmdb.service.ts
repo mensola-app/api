@@ -171,4 +171,97 @@ export const tmdbService = {
             releaseDate: item.release_date,
         }));
     },
+
+    /**
+     * Searches TMDB for a movie by title and year with a +/- 1 year fallback tolerance,
+     * scoring candidates to pick the best title and year match.
+     */
+    searchMovieWithTolerance: async (query: string, year?: number | null): Promise<ITmdbMovie | null> => {
+        const normalize = (str?: string | null): string => {
+            if (!str) return "";
+            return str
+                .toLowerCase()
+                .normalize("NFD")
+                .replace(/[\u0300-\u036f]/g, "")
+                .replace(/[^a-z0-9]/g, "")
+                .trim();
+        };
+
+        const scoreCandidate = (m: ITmdbMovie, q: string, targetYear?: number | null): number => {
+            const normQuery = normalize(q);
+            const normTitle = normalize(m.title);
+            const normOrig = normalize(m.original_title);
+
+            const isExactTitle = (normTitle && normTitle === normQuery) || (normOrig && normOrig === normQuery);
+            const isPartialTitle =
+                (normTitle && (normTitle.includes(normQuery) || normQuery.includes(normTitle))) ||
+                (normOrig && (normOrig.includes(normQuery) || normQuery.includes(normOrig)));
+
+            const mYear = m.release_date ? parseInt(m.release_date.split("-")[0], 10) : null;
+            const isExactYear = Boolean(targetYear && mYear === targetYear);
+            const isTolYear = Boolean(targetYear && mYear && Math.abs(mYear - targetYear) <= 1);
+
+            if (targetYear) {
+                // Must be within +/- 1 year tolerance when year is specified
+                if (!isTolYear) return 0;
+
+                if (isExactTitle && isExactYear) return 100;
+                if (isExactTitle && isTolYear) return 80;
+                if (isPartialTitle && isExactYear) return 60;
+                if (isPartialTitle && isTolYear) return 40;
+                return 10;
+            } else {
+                if (isExactTitle) return 100;
+                if (isPartialTitle) return 50;
+                return 10;
+            }
+        };
+
+        const findBestCandidate = (
+            candidates: ITmdbMovie[],
+            q: string,
+            targetYear?: number | null,
+        ): ITmdbMovie | null => {
+            if (!candidates || candidates.length === 0) return null;
+
+            const scored = candidates
+                .map((m) => ({
+                    movie: m,
+                    score: scoreCandidate(m, q, targetYear),
+                }))
+                .filter((item) => item.score > 0)
+                .sort(
+                    (a, b) =>
+                        b.score - a.score ||
+                        (b.movie.vote_count ?? 0) - (a.movie.vote_count ?? 0) ||
+                        (b.movie.popularity ?? 0) - (a.movie.popularity ?? 0),
+                );
+
+            return scored.length > 0 ? scored[0].movie : null;
+        };
+
+        // 1. Search with year if provided
+        if (year) {
+            const resWithYear = await fetch(
+                `${TMDB_BASE_URL}/search/movie?query=${encodeURIComponent(query)}&year=${year}&language=en-US`,
+                { headers: { Authorization: `Bearer ${TMDB_TOKEN}`, accept: "application/json" } },
+            );
+            if (resWithYear.ok) {
+                const data = (await resWithYear.json()) as SearchMovieResult;
+                const best = findBestCandidate(data.results, query, year);
+                if (best) return best;
+            }
+        }
+
+        // 2. Search without year filter as fallback
+        const resWithoutYear = await fetch(
+            `${TMDB_BASE_URL}/search/movie?query=${encodeURIComponent(query)}&language=en-US`,
+            { headers: { Authorization: `Bearer ${TMDB_TOKEN}`, accept: "application/json" } },
+        );
+        if (!resWithoutYear.ok) return null;
+
+        const data = (await resWithoutYear.json()) as SearchMovieResult;
+        return findBestCandidate(data.results, query, year);
+    },
 };
+
