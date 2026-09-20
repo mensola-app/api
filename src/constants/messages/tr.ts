@@ -80,9 +80,13 @@ export const MESSAGES = {
         MAX_FAVORITES_TRACK_REACHED: "En fazla 3 favori şarkı ekleyebilirsiniz.",
         ALREADY_FOLLOWING_ARTIST: "Bu sanatçıyı zaten takip ediyorsunuz.",
         NOT_FOLLOWING_ARTIST: "Bu sanatçıyı takip etmiyorsunuz.",
+        INVALID_LETTERBOXD_ZIP: "Geçersiz Letterboxd ZIP arşivi. watched.csv veya ratings.csv dosyası bulunamadı.",
+        NO_FILE_UPLOADED: "Lütfen bir dosya yükleyin.",
+        INVALID_ZIP_FILE: "Yalnızca .zip uzantılı arşiv dosyaları desteklenir.",
     },
 
     SUCCESS: {
+        IMPORT_QUEUED: "İçe aktarma işlemi sıraya alındı.",
         REGISTER_SUCCESS: "Kayıt işlemi başarıyla tamamlandı.",
         LOGIN_SUCCESS: "Giriş başarılı.",
         LOGOUT_SUCCESS: "Çıkış yapıldı.",

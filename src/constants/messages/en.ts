@@ -80,9 +80,13 @@ export const MESSAGES = {
         MAX_FAVORITES_TRACK_REACHED: "You can add up to 3 favorite tracks.",
         ALREADY_FOLLOWING_ARTIST: "You are already following this artist.",
         NOT_FOLLOWING_ARTIST: "You are not following this artist.",
+        INVALID_LETTERBOXD_ZIP: "Invalid Letterboxd ZIP archive. watched.csv or ratings.csv not found.",
+        NO_FILE_UPLOADED: "Please upload a file.",
+        INVALID_ZIP_FILE: "Only .zip archive files are supported.",
     },
 
     SUCCESS: {
+        IMPORT_QUEUED: "Import job has been queued.",
         REGISTER_SUCCESS: "Registration completed successfully.",
         LOGIN_SUCCESS: "Login successful.",
         LOGOUT_SUCCESS: "Logged out successfully.",
