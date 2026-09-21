@@ -16,7 +16,7 @@ let inMemoryTokenExpiresAt = 0;
  * Checks Redis first; if missing, requests a fresh token from Spotify API,
  * caches it in Redis with safety TTL margin, and updates in-memory fallback.
  */
-const getAccessToken = async (): Promise<string> => {
+export const getAccessToken = async (): Promise<string> => {
     // 1. Try to get token from Redis
     const cachedToken = await getCache<string>(SPOTIFY_TOKEN_CACHE_KEY);
     if (cachedToken) {
