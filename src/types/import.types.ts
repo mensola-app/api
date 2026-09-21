@@ -151,6 +151,7 @@ export interface ImportResponseDto {
 export interface NormalizedSpotifyArtist {
     spotifyId: string;
     name: string;
+    image?: string | null;
 }
 
 export interface NormalizedSpotifyAlbum {

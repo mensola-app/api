@@ -1,6 +1,6 @@
 import crypto from "crypto";
 import pool from "@/config/db";
-import { getAccessToken } from "./spotify.service";
+import { getAccessToken, spotifyService } from "./spotify.service";
 import {
     NormalizedSpotifyAlbum,
     NormalizedSpotifyArtist,
@@ -384,6 +384,56 @@ export const spotifyImportService = {
                 }
             }
 
+            // For any synthetic IDs (e.g. art_...), resolve real Spotify ID or existing DB row
+            for (const [key, artist] of Array.from(artistMap.entries())) {
+                if (artist.spotifyId.startsWith("art_")) {
+                    try {
+                        // 1. Check if artist already exists in DB
+                        const dbMatch = await client.query<{ id: string; spotifyId: string; image: string | null }>(
+                            `SELECT id, "spotifyId", image FROM "Artist" WHERE LOWER(name) = LOWER($1) LIMIT 1`,
+                            [artist.name]
+                        );
+                        if (dbMatch.rows.length > 0 && !dbMatch.rows[0].spotifyId.startsWith("art_")) {
+                            const found = dbMatch.rows[0];
+                            const oldId = artist.spotifyId;
+                            artist.spotifyId = found.spotifyId;
+                            artist.image = artist.image || found.image;
+                            artistMap.delete(oldId);
+                            artistMap.set(found.spotifyId, artist);
+                            for (const trk of playlistData.tracks) {
+                                for (const a of trk.artists) {
+                                    if (a.spotifyId === oldId) a.spotifyId = found.spotifyId;
+                                }
+                                for (const a of trk.album.artists || []) {
+                                    if (a.spotifyId === oldId) a.spotifyId = found.spotifyId;
+                                }
+                            }
+                        } else {
+                            // 2. Search Spotify for real artist profile
+                            const searchMatches = await spotifyService.searchArtists(artist.name, 1, 1);
+                            const match = searchMatches[0];
+                            if (match && /^[0-9A-Za-z]{22}$/.test(match.spotifyId)) {
+                                const oldId = artist.spotifyId;
+                                artist.spotifyId = match.spotifyId;
+                                artist.image = match.image;
+                                artistMap.delete(oldId);
+                                artistMap.set(match.spotifyId, artist);
+                                for (const trk of playlistData.tracks) {
+                                    for (const a of trk.artists) {
+                                        if (a.spotifyId === oldId) a.spotifyId = match.spotifyId;
+                                    }
+                                    for (const a of trk.album.artists || []) {
+                                        if (a.spotifyId === oldId) a.spotifyId = match.spotifyId;
+                                    }
+                                }
+                            }
+                        }
+                    } catch (artErr) {
+                        console.warn(`[SpotifyImport] Could not resolve real artist for "${artist.name}":`, artErr);
+                    }
+                }
+            }
+
             // Batch Upsert Artists in chunks of 100
             const artistIdMap = new Map<string, string>(); // spotifyId -> UUID
             const artistList = Array.from(artistMap.values());
@@ -392,16 +442,17 @@ export const spotifyImportService = {
                 const valuePlaceholders: string[] = [];
 
                 chunk.forEach((artist, idx) => {
-                    const offset = idx * 2;
-                    valuePlaceholders.push(`($${offset + 1}, $${offset + 2}, null, NOW())`);
-                    values.push(artist.spotifyId, artist.name);
+                    const offset = idx * 3;
+                    valuePlaceholders.push(`($${offset + 1}, $${offset + 2}, $${offset + 3}, NOW())`);
+                    values.push(artist.spotifyId, artist.name, artist.image || null);
                 });
 
                 const query = `
                     INSERT INTO "Artist" ("spotifyId", "name", "image", "createdAt")
                     VALUES ${valuePlaceholders.join(", ")}
                     ON CONFLICT ("spotifyId") DO UPDATE
-                    SET "name" = EXCLUDED."name"
+                    SET "name" = EXCLUDED."name",
+                        "image" = COALESCE("Artist"."image", EXCLUDED."image")
                     RETURNING "id", "spotifyId";
                 `;
 

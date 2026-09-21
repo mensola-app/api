@@ -149,6 +149,30 @@ export const spotifyService = {
         return { items: tracks, page, limit, hasMore, totalResults };
     },
 
+    searchArtists: async (query: string, page: number = 1, limit: number = 10) => {
+        const offset = (page - 1) * limit;
+        const token = await getAccessToken();
+
+        const res = await fetch(
+            `https://api.spotify.com/v1/search?q=${encodeURIComponent(query)}&type=artist&limit=${limit}&offset=${offset}`,
+            { headers: { Authorization: `Bearer ${token}` } },
+        );
+
+        if (!res.ok) {
+            throw new Error(`Spotify searchArtists failed: ${res.status}`);
+        }
+
+        const data = await res.json();
+        const items = data.artists?.items || [];
+        return items.map((a: any) => ({
+            spotifyId: a.id as string,
+            name: a.name as string,
+            image: getAlbumCover(a.images),
+            followers: a.followers?.total ?? 0,
+            genres: (a.genres ?? []) as string[],
+        }));
+    },
+
     getNewAlbums: async (page: number, limit: number) => {
         const offset = (page - 1) * limit;
         const token = await getAccessToken();
