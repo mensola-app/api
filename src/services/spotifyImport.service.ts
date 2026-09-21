@@ -173,31 +173,6 @@ export const fetchTracksFromEmbed = async (
 
     const rawTracks: any[] = Array.isArray(entity.trackList) ? entity.trackList : [];
 
-    // Fetch individual track thumbnails via oembed in chunks of 10
-    const trackThumbnails = new Map<string, string>();
-    const trackIdsToFetch = rawTracks
-        .slice(0, MAX_PLAYLIST_TRACKS)
-        .map((t) => (t.uri ? t.uri.replace("spotify:track:", "") : t.id))
-        .filter(Boolean);
-
-    for (const chunk of chunkArray(trackIdsToFetch, 10)) {
-        await Promise.all(
-            chunk.map(async (id) => {
-                try {
-                    const oembedRes = await fetch(
-                        `https://open.spotify.com/oembed?url=https://open.spotify.com/track/${id}`,
-                    );
-                    if (oembedRes.ok) {
-                        const oembedData = await oembedRes.json();
-                        if (oembedData?.thumbnail_url) {
-                            trackThumbnails.set(id, oembedData.thumbnail_url);
-                        }
-                    }
-                } catch {}
-            }),
-        );
-    }
-
     const allTracks: NormalizedSpotifyTrack[] = [];
     for (const item of rawTracks.slice(0, MAX_PLAYLIST_TRACKS)) {
         const trackId = item.uri ? item.uri.replace("spotify:track:", "") : item.id;
@@ -208,7 +183,8 @@ export const fetchTracksFromEmbed = async (
             .slice(0, 255);
         const durationMs =
             typeof item.duration === "number" ? Math.max(0, Math.floor(item.duration)) : 0;
-        const trackCover = trackThumbnails.get(trackId) || coverUrl;
+        // Do NOT assign playlist cover art to tracks! If embed has no track cover, keep null.
+        const trackCover = item.coverArt?.sources?.[0]?.url || null;
 
         let artists: NormalizedSpotifyArtist[] = [];
         if (Array.isArray(item.artists) && item.artists.length > 0) {
@@ -384,16 +360,15 @@ export const spotifyImportService = {
                 }
             }
 
-            // For any synthetic IDs (e.g. art_...), resolve real Spotify ID or existing DB row
+            // Reuse existing artist from DB if matched by name (0 external requests)
             for (const [key, artist] of Array.from(artistMap.entries())) {
                 if (artist.spotifyId.startsWith("art_")) {
                     try {
-                        // 1. Check if artist already exists in DB
                         const dbMatch = await client.query<{ id: string; spotifyId: string; image: string | null }>(
                             `SELECT id, "spotifyId", image FROM "Artist" WHERE LOWER(name) = LOWER($1) LIMIT 1`,
-                            [artist.name]
+                            [artist.name],
                         );
-                        if (dbMatch.rows.length > 0 && !dbMatch.rows[0].spotifyId.startsWith("art_")) {
+                        if (dbMatch.rows.length > 0) {
                             const found = dbMatch.rows[0];
                             const oldId = artist.spotifyId;
                             artist.spotifyId = found.spotifyId;
@@ -408,28 +383,9 @@ export const spotifyImportService = {
                                     if (a.spotifyId === oldId) a.spotifyId = found.spotifyId;
                                 }
                             }
-                        } else {
-                            // 2. Search Spotify for real artist profile
-                            const searchMatches = await spotifyService.searchArtists(artist.name, 1, 1);
-                            const match = searchMatches[0];
-                            if (match && /^[0-9A-Za-z]{22}$/.test(match.spotifyId)) {
-                                const oldId = artist.spotifyId;
-                                artist.spotifyId = match.spotifyId;
-                                artist.image = match.image;
-                                artistMap.delete(oldId);
-                                artistMap.set(match.spotifyId, artist);
-                                for (const trk of playlistData.tracks) {
-                                    for (const a of trk.artists) {
-                                        if (a.spotifyId === oldId) a.spotifyId = match.spotifyId;
-                                    }
-                                    for (const a of trk.album.artists || []) {
-                                        if (a.spotifyId === oldId) a.spotifyId = match.spotifyId;
-                                    }
-                                }
-                            }
                         }
-                    } catch (artErr) {
-                        console.warn(`[SpotifyImport] Could not resolve real artist for "${artist.name}":`, artErr);
+                    } catch (dbErr) {
+                        console.warn(`[SpotifyImport] DB artist lookup failed for "${artist.name}":`, dbErr);
                     }
                 }
             }

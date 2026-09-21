@@ -107,8 +107,12 @@ export const spotifyService = {
             { headers: { Authorization: `Bearer ${token}` } },
         );
 
+        if (!res.ok) {
+            throw new Error(`Spotify searchTracks failed: ${res.status}`);
+        }
+
         const searchData = await res.json();
-        const searchDataTracks = searchData.tracks as SearchTrackResult;
+        const searchDataTracks = (searchData.tracks || { items: [] }) as SearchTrackResult;
 
         const tracks: Omit<ITrack, "id">[] = searchDataTracks.items.map((item) => {
             let album: Omit<IAlbum, "id"> | undefined;

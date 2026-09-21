@@ -119,8 +119,8 @@ export const getArtistById = async (
         }
     }
 
-    // Auto-heal synthetic or invalid spotifyId
-    if (!isValidSpotifyId(artist.spotifyId)) {
+    // Auto-heal synthetic (art_...) or invalid spotifyId
+    if (artist.spotifyId.startsWith("art_") || !isValidSpotifyId(artist.spotifyId)) {
         try {
             const matches = await spotifyService.searchArtists(artist.name, 1, 1);
             const match = matches[0];
