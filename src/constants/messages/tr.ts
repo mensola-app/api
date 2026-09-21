@@ -83,6 +83,10 @@ export const MESSAGES = {
         INVALID_LETTERBOXD_ZIP: "Geçersiz Letterboxd ZIP arşivi. watched.csv veya ratings.csv dosyası bulunamadı.",
         NO_FILE_UPLOADED: "Lütfen bir dosya yükleyin.",
         INVALID_ZIP_FILE: "Yalnızca .zip uzantılı arşiv dosyaları desteklenir.",
+        INVALID_SPOTIFY_PLAYLIST_URL: "Geçerli bir Spotify çalma listesi bağlantısı veya kimliği bulunamadı.",
+        INPUT_IS_NOT_A_PLAYLIST: "Yalnızca Spotify çalma listeleri içe aktarılabilir. Şarkı, albüm veya sanatçı bağlantıları desteklenmez.",
+        AT_LEAST_ONE_PLAYLIST_REQUIRED: "En az bir Spotify çalma listesi bağlantısı veya kimliği gereklidir.",
+        PLAYLIST_NOT_FOUND: "Spotify çalma listesi bulunamadı veya gizli.",
     },
 
     SUCCESS: {

@@ -83,6 +83,10 @@ export const MESSAGES = {
         INVALID_LETTERBOXD_ZIP: "Invalid Letterboxd ZIP archive. watched.csv or ratings.csv not found.",
         NO_FILE_UPLOADED: "Please upload a file.",
         INVALID_ZIP_FILE: "Only .zip archive files are supported.",
+        INVALID_SPOTIFY_PLAYLIST_URL: "Could not find a valid Spotify playlist URL or ID.",
+        INPUT_IS_NOT_A_PLAYLIST: "Only Spotify playlists can be imported. Track, album, or artist links are not supported.",
+        AT_LEAST_ONE_PLAYLIST_REQUIRED: "At least one Spotify playlist URL or ID is required.",
+        PLAYLIST_NOT_FOUND: "Spotify playlist not found or is private.",
     },
 
     SUCCESS: {
