@@ -8,6 +8,13 @@ const REDIS_URL = process.env.REDIS_URL || "redis://localhost:6379";
 export const bullmqRedisConnection = new Redis(REDIS_URL, {
     maxRetriesPerRequest: null,
     lazyConnect: process.env.NODE_ENV === "test",
+    retryStrategy(times) {
+        if (process.env.NODE_ENV === "test") {
+            return null;
+        }
+        const delay = Math.min(times * 50, 2000);
+        return delay;
+    },
 });
 
 export const importQueue = new Queue<ImportJobPayload>("letterboxd-import", {

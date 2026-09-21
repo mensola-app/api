@@ -28,6 +28,26 @@ export const importLetterboxd = async (req: Request, res: Response, next: NextFu
 };
 
 /**
+ * Handles Spotify playlist import requests, validates links/IDs,
+ * enqueues BullMQ job, and immediately responds with 202 Accepted.
+ */
+export const importSpotify = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+        const userId = req.user?.id;
+        if (!userId) {
+            throw new ApiError("UNAUTHORIZED", 401);
+        }
+
+        const { urls } = req.body;
+        const job = await importService.createSpotifyImportJob(userId, urls);
+
+        sendResponse(res, 202, job, "IMPORT_QUEUED");
+    } catch (error) {
+        next(error);
+    }
+};
+
+/**
  * Retrieves current progress of a specific import job.
  */
 export const getImportProgress = async (req: Request, res: Response, next: NextFunction): Promise<void> => {

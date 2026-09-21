@@ -1,7 +1,9 @@
 import { Router } from "express";
 import multer from "multer";
 import { verifyToken } from "@/middlewares/auth.middleware";
-import { importLetterboxd, getImportProgress } from "@/controllers/v1/import.controller";
+import { validate } from "@/middlewares/validate.middleware";
+import { importLetterboxd, importSpotify, getImportProgress } from "@/controllers/v1/import.controller";
+import { importSpotifySchema } from "@/validations/import.validation";
 import { ApiError } from "@/utils/error";
 
 const router = Router();
@@ -26,6 +28,7 @@ const upload = multer({
     },
 });
 
+router.post("/spotify", verifyToken, validate(importSpotifySchema), importSpotify);
 router.post("/letterboxd", verifyToken, upload.single("file"), importLetterboxd);
 router.get("/:jobId", verifyToken, getImportProgress);
 

@@ -16,10 +16,12 @@ import {
     LetterboxdWatchlistRow,
     LetterboxdListMetaRow,
     LetterboxdListItemRow,
+    SpotifyImportJobItemsPayload,
 } from "@/types/import.types";
 import { ApiError } from "@/utils/error";
 import { redis } from "@/config/redis";
 import { importQueue } from "@/jobs/import.queue";
+import { parseSpotifyPlaylistId } from "@/utils/spotify.utils";
 
 const JOB_PROGRESS_TTL = 86400; // 24 hours
 const JOB_ITEMS_TTL = 86400; // 24 hours
@@ -531,6 +533,74 @@ export const importService = {
             jobId,
             status: "queued",
             totalItems,
+            type: "letterboxd",
+        };
+    },
+
+    /**
+     * Creates a Spotify playlist import job, validates playlist links/IDs,
+     * stores progress in Redis, and enqueues a BullMQ job.
+     */
+    createSpotifyImportJob: async (userId: string, rawUrls: string[]): Promise<ImportResponseDto> => {
+        if (!Array.isArray(rawUrls) || rawUrls.length === 0) {
+            throw new ApiError("AT_LEAST_ONE_PLAYLIST_REQUIRED", 400, "At least one Spotify playlist URL or ID is required.");
+        }
+
+        // Parse and validate all playlist IDs
+        const playlistIds: string[] = [];
+        for (const input of rawUrls) {
+            const parsedId = parseSpotifyPlaylistId(input);
+            if (parsedId && !playlistIds.includes(parsedId)) {
+                playlistIds.push(parsedId);
+            }
+        }
+
+        if (playlistIds.length === 0) {
+            throw new ApiError("INVALID_SPOTIFY_PLAYLIST_URL", 400, "No valid Spotify playlist IDs found.");
+        }
+
+        const jobId = nanoid();
+        const now = new Date().toISOString();
+        const totalItems = playlistIds.length;
+
+        const progress: ImportJobProgress = {
+            jobId,
+            userId,
+            status: "queued",
+            type: "spotify",
+            totalItems,
+            processedItems: 0,
+            successCount: 0,
+            failedCount: 0,
+            playlistsCount: 0,
+            tracksCount: 0,
+            createdAt: now,
+            updatedAt: now,
+        };
+
+        // 1. Save progress state in Redis
+        await redis.set(`import:job:${jobId}`, JSON.stringify(progress), "EX", JOB_PROGRESS_TTL);
+
+        // 2. Save payload in Redis
+        const payload: SpotifyImportJobItemsPayload = { playlistIds };
+        await redis.set(`import:items:${jobId}`, JSON.stringify(payload), "EX", JOB_ITEMS_TTL);
+
+        // 3. Enqueue lightweight BullMQ job
+        await importQueue.add(
+            "import-spotify",
+            { jobId, userId, totalItems, type: "spotify" },
+            {
+                jobId,
+                removeOnComplete: { count: 100 },
+                removeOnFail: { count: 100 },
+            },
+        );
+
+        return {
+            jobId,
+            status: "queued",
+            totalItems,
+            type: "spotify",
         };
     },
 

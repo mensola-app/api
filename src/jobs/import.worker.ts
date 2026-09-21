@@ -2,8 +2,9 @@ import { Worker, Job } from "bullmq";
 import pool from "@/config/db";
 import { redis } from "@/config/redis";
 import { bullmqRedisConnection } from "@/jobs/import.queue";
-import { ImportJobPayload, ImportJobProgress, ImportMovieItem, ImportFailedItem, ImportCustomList } from "@/types/import.types";
+import { ImportJobPayload, ImportJobProgress, ImportMovieItem, ImportFailedItem, ImportCustomList, ImportJobStatus } from "@/types/import.types";
 import { tmdbService } from "@/services/tmdb.service";
+import { spotifyImportService } from "@/services/spotifyImport.service";
 import { movieQueries } from "@/queries/movie.queries";
 import { invalidateUserProfile } from "@/utils/cache";
 import { sendPushNotification } from "@/utils/pushNotification";
@@ -64,7 +65,120 @@ const tmdbLimiter = new RateLimiter(15, 1000);
 export let importWorker: Worker<ImportJobPayload> | null = null;
 
 /**
- * Initializes BullMQ worker for Letterboxd imports.
+/**
+ * Processes a Spotify playlist import job.
+ */
+const processSpotifyImportJob = async (job: Job<ImportJobPayload>): Promise<void> => {
+    const { jobId, userId, totalItems } = job.data;
+    console.log(`[Spotify Import Worker] Starting Spotify import job ${jobId} for user ${userId} (${totalItems} playlists)`);
+
+    const rawPayload = await redis.get(`import:items:${jobId}`);
+    if (!rawPayload) {
+        console.error(`[Spotify Import Worker] No items found in Redis for job ${jobId}`);
+        await updateJobProgress(jobId, { status: "failed" });
+        return;
+    }
+
+    let playlistIds: string[] = [];
+    try {
+        const parsed = JSON.parse(rawPayload);
+        playlistIds = parsed.playlistIds || [];
+    } catch (err) {
+        console.error(`[Spotify Import Worker] Failed to parse items for job ${jobId}`, err);
+        await updateJobProgress(jobId, { status: "failed" });
+        return;
+    }
+
+    await updateJobProgress(jobId, { status: "processing" });
+
+    let processedPlaylists = 0;
+    let successfulPlaylists = 0;
+    let failedPlaylists = 0;
+    let totalTracksImported = 0;
+    const errors: ImportFailedItem[] = [];
+
+    for (const playlistId of playlistIds) {
+        try {
+            console.log(`[Spotify Import Worker] Fetching playlist ${playlistId} for user ${userId}...`);
+            const playlistData = await spotifyImportService.fetchSpotifyPlaylist(playlistId);
+
+            console.log(`[Spotify Import Worker] Persisting playlist "${playlistData.name}" (${playlistData.tracks.length} tracks)...`);
+            const { tracksCount } = await spotifyImportService.persistSpotifyPlaylist(userId, playlistData);
+
+            successfulPlaylists++;
+            totalTracksImported += tracksCount;
+        } catch (err: any) {
+            console.error(`[Spotify Import Worker] Error importing playlist ${playlistId}:`, err);
+            failedPlaylists++;
+            errors.push({
+                playlist: playlistId,
+                error: err.message || "Failed to import playlist",
+            });
+        } finally {
+            processedPlaylists++;
+            await updateJobProgress(jobId, {
+                processedItems: processedPlaylists,
+                successCount: successfulPlaylists,
+                failedCount: failedPlaylists,
+                playlistsCount: successfulPlaylists,
+                tracksCount: totalTracksImported,
+                errors: errors.slice(-20),
+            });
+        }
+    }
+
+    const finalStatus: ImportJobStatus = successfulPlaylists > 0 ? "completed" : "failed";
+    await updateJobProgress(jobId, {
+        status: finalStatus,
+        completedAt: new Date().toISOString(),
+    });
+
+    // Send push notification
+    try {
+        if (finalStatus === "completed") {
+            await sendPushNotification(userId, {
+                localized: {
+                    tr: {
+                        title: "Spotify Çalma Listesi Aktarımı Tamamlandı",
+                        body: `${successfulPlaylists} çalma listesi ve ${totalTracksImported} parça başarıyla içe aktarıldı.`,
+                    },
+                    en: {
+                        title: "Spotify Import Completed",
+                        body: `Successfully imported ${successfulPlaylists} playlist(s) and ${totalTracksImported} track(s).`,
+                    },
+                },
+                data: {
+                    type: "spotify_import_completed",
+                    jobId,
+                    playlistsCount: String(successfulPlaylists),
+                    tracksCount: String(totalTracksImported),
+                },
+            });
+        } else {
+            await sendPushNotification(userId, {
+                localized: {
+                    tr: {
+                        title: "Spotify İçe Aktarma Başarısız Oldu",
+                        body: "Çalma listeleri aktarılırken bir hata oluştu. Lütfen bağlantıları kontrol edip tekrar deneyin.",
+                    },
+                    en: {
+                        title: "Spotify Import Failed",
+                        body: "Failed to import Spotify playlists. Please check your links and try again.",
+                    },
+                },
+                data: {
+                    type: "spotify_import_failed",
+                    jobId,
+                },
+            });
+        }
+    } catch (notifyErr) {
+        console.error(`[Spotify Import Worker] Push notification failed:`, notifyErr);
+    }
+};
+
+/**
+ * Initializes BullMQ worker for Letterboxd & Spotify imports.
  */
 export const initImportWorker = (): Worker<ImportJobPayload> => {
     if (importWorker) return importWorker;
@@ -73,6 +187,13 @@ export const initImportWorker = (): Worker<ImportJobPayload> => {
         "letterboxd-import",
         async (job: Job<ImportJobPayload>) => {
             const { jobId, userId, totalItems } = job.data;
+
+            // Route Spotify import jobs
+            if (job.name === "import-spotify" || job.data.type === "spotify") {
+                await processSpotifyImportJob(job);
+                return;
+            }
+
             console.log(`[Import Worker] Starting import job ${jobId} for user ${userId} (${totalItems} items)`);
 
             // Fetch items from Redis
