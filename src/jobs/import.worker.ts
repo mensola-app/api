@@ -110,9 +110,11 @@ const processSpotifyImportJob = async (job: Job<ImportJobPayload>): Promise<void
         } catch (err: any) {
             console.error(`[Spotify Import Worker] Error importing playlist ${playlistId}:`, err);
             failedPlaylists++;
+            const errorCode = err.code || (err.statusCode === 404 ? "PLAYLIST_NOT_FOUND" : "IMPORT_FAILED");
             errors.push({
                 playlist: playlistId,
-                error: err.message || "Failed to import playlist",
+                error: err.code === "PLAYLIST_NOT_FOUND" ? "PLAYLIST_NOT_FOUND" : (err.message || "Failed to import playlist"),
+                errorCode,
             });
         } finally {
             processedPlaylists++;
