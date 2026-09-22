@@ -173,6 +173,54 @@ export const fetchTracksFromEmbed = async (
 
     const rawTracks: any[] = Array.isArray(entity.trackList) ? entity.trackList : [];
 
+    // Fetch individual track thumbnails safely without hitting rate limits
+    const trackThumbnails = new Map<string, string>();
+    const trackIdsToFetch = rawTracks
+        .slice(0, MAX_PLAYLIST_TRACKS)
+        .map((t) => (t.uri ? t.uri.replace("spotify:track:", "") : t.id))
+        .filter(Boolean);
+
+    // 1. Check existing track covers in DB to avoid redundant requests
+    if (trackIdsToFetch.length > 0) {
+        try {
+            const existingTracks = await pool.query<{ spotifyId: string; image: string }>(
+                `SELECT "spotifyId", "image" FROM "Track" WHERE "spotifyId" = ANY($1) AND "image" IS NOT NULL`,
+                [trackIdsToFetch],
+            );
+            for (const row of existingTracks.rows) {
+                trackThumbnails.set(row.spotifyId, row.image);
+            }
+        } catch {}
+    }
+
+    // 2. Fetch remaining tracks via oembed in gentle chunks of 5 with 60ms delay
+    const missingIds = trackIdsToFetch.filter((id) => !trackThumbnails.has(id));
+    for (const chunk of chunkArray(missingIds, 5)) {
+        await Promise.all(
+            chunk.map(async (id) => {
+                try {
+                    const oembedRes = await fetch(
+                        `https://open.spotify.com/oembed?url=https://open.spotify.com/track/${id}`,
+                    );
+                    if (oembedRes.ok) {
+                        const oembedData = await oembedRes.json();
+                        if (oembedData?.thumbnail_url) {
+                            // Upgrade 300x300 to 640x640 high-res cover
+                            const highRes = oembedData.thumbnail_url.replace(
+                                "ab67616d00001e02",
+                                "ab67616d0000b273",
+                            );
+                            trackThumbnails.set(id, highRes);
+                        }
+                    }
+                } catch {}
+            }),
+        );
+        if (missingIds.length > 5) {
+            await sleep(60);
+        }
+    }
+
     const allTracks: NormalizedSpotifyTrack[] = [];
     for (const item of rawTracks.slice(0, MAX_PLAYLIST_TRACKS)) {
         const trackId = item.uri ? item.uri.replace("spotify:track:", "") : item.id;
@@ -183,8 +231,8 @@ export const fetchTracksFromEmbed = async (
             .slice(0, 255);
         const durationMs =
             typeof item.duration === "number" ? Math.max(0, Math.floor(item.duration)) : 0;
-        // Do NOT assign playlist cover art to tracks! If embed has no track cover, keep null.
-        const trackCover = item.coverArt?.sources?.[0]?.url || null;
+        // Real track album cover (never fall back to playlist cover)
+        const trackCover = trackThumbnails.get(trackId) || item.coverArt?.sources?.[0]?.url || null;
 
         let artists: NormalizedSpotifyArtist[] = [];
         if (Array.isArray(item.artists) && item.artists.length > 0) {
